@@ -1,7 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="128" fill="#0b0709"/>
-  <g fill="none" stroke-linecap="round" stroke-width="58">
-    <path d="M140 195c58-58 174-58 232 0" stroke="#fff8fa"/>
-    <path d="M140 317c58 58 174 58 232 0" stroke="#ff718f"/>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="burgundy" x1="512" y1="236" x2="512" y2="753" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#D14E69"/>
+      <stop offset="100%" stop-color="#A61E31"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="220" fill="#0F0B11"/>
+  <g stroke="url(#burgundy)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="330" y1="304" x2="475" y2="304"/>
+    <line x1="549" y1="304" x2="695" y2="304"/>
+    <line x1="482" y1="331" x2="388" y2="410"/>
+    <line x1="542" y1="331" x2="645" y2="410"/>
+    <line x1="512" y1="342" x2="512" y2="622"/>
+    <line x1="560" y1="446" x2="560" y2="628"/>
+    <line x1="548" y1="470" x2="466" y2="529"/>
+    <path d="M466 529V676C466 709 492 735 525 735"/>
+  </g>
+  <g stroke="url(#burgundy)" stroke-width="18" fill="#0F0B11">
+    <circle cx="294" cy="304" r="37"/>
+    <circle cx="512" cy="304" r="41"/>
+    <circle cx="730" cy="304" r="37"/>
+    <circle cx="359" cy="393" r="37"/>
+    <circle cx="673" cy="393" r="37"/>
+    <circle cx="512" cy="666" r="45"/>
   </g>
 </svg>
