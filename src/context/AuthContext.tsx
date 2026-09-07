@@ -1,7 +1,6 @@
 import {
   type User,
   createUserWithEmailAndPassword,
-  getIdTokenResult,
   getRedirectResult,
   onAuthStateChanged,
   sendPasswordResetEmail,
@@ -11,10 +10,9 @@ import {
   signOut as firebaseSignOut,
   updateProfile,
 } from 'firebase/auth'
-import { httpsCallable } from 'firebase/functions'
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { syncProfile } from '../api/users'
-import { auth, functions, googleProvider } from '../lib/firebase'
+import { auth, googleProvider } from '../lib/firebase'
 
 type AuthContextValue = {
   user: User | null
@@ -30,24 +28,8 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-async function ensureRoleClaim(user: User): Promise<boolean> {
-  const token = await getIdTokenResult(user, false)
-  if (token.claims.role === 'authenticated') return true
-  if (!functions) return false
-
-  try {
-    const ensureRole = httpsCallable(functions, 'ensureAuthenticatedRole')
-    await ensureRole()
-    const refreshed = await getIdTokenResult(user, true)
-    return refreshed.claims.role === 'authenticated'
-  } catch {
-    return false
-  }
-}
-
-async function prepareUser(user: User): Promise<boolean> {
-  const ready = await ensureRoleClaim(user)
-  if (!ready) return false
+async function prepareUser(user: User, forceRefresh = false): Promise<boolean> {
+  await user.getIdToken(forceRefresh)
   await syncProfile({
     userId: user.uid,
     email: user.email,
@@ -69,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     void getRedirectResult(auth).catch(() => undefined)
+
     return onAuthStateChanged(auth, nextUser => {
       setUser(nextUser)
       if (!nextUser) {
@@ -94,15 +77,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const credential = await signInWithEmailAndPassword(auth, email, password)
       const ready = await prepareUser(credential.user)
       setSupabaseRoleReady(ready)
-      if (!ready) throw new Error('Sua conta entrou, mas não foi possível concluir a sessão. Tente novamente em instantes.')
     },
     register: async (name, email, password) => {
       if (!auth) throw new Error('O serviço de cadastro está indisponível.')
       const credential = await createUserWithEmailAndPassword(auth, email, password)
       await updateProfile(credential.user, { displayName: name })
-      const ready = await prepareUser(credential.user)
+      await credential.user.reload()
+      const ready = await prepareUser(credential.user, true)
       setSupabaseRoleReady(ready)
-      if (!ready) throw new Error('Sua conta foi criada, mas não foi possível concluir a sessão. Entre novamente em instantes.')
     },
     signInGoogle: async () => {
       if (!auth) throw new Error('O serviço de login está indisponível.')
@@ -114,7 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const credential = await signInWithPopup(auth, googleProvider)
       const ready = await prepareUser(credential.user)
       setSupabaseRoleReady(ready)
-      if (!ready) throw new Error('Sua conta entrou, mas não foi possível concluir a sessão. Tente novamente em instantes.')
     },
     resetPassword: async email => {
       if (!auth) throw new Error('O serviço de conta está indisponível.')
@@ -122,9 +103,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     refreshRole: async () => {
       if (!auth?.currentUser) return false
-      const ready = await prepareUser(auth.currentUser)
-      setSupabaseRoleReady(ready)
-      return ready
+      try {
+        const ready = await prepareUser(auth.currentUser, true)
+        setSupabaseRoleReady(ready)
+        return ready
+      } catch {
+        setSupabaseRoleReady(false)
+        return false
+      }
     },
     signOut: async () => {
       if (auth) await firebaseSignOut(auth)
