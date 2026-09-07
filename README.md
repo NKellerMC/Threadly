@@ -49,9 +49,10 @@ O Threadly separa autenticação e dados deliberadamente:
 1. **Firebase Auth** autentica o usuário.
 2. O Firebase emite o ID token.
 3. O cliente Supabase recebe esse token por `accessToken`.
-4. O Supabase valida o Firebase como Third-Party Auth e aplica RLS no Postgres, Storage e Realtime.
-5. O perfil da conta é sincronizado no Postgres depois que a sessão Firebase → Supabase está pronta.
-6. Vídeos, thumbnails e imagens ficam no Supabase Storage; metadados, relações sociais e mensagens ficam no Postgres.
+4. O Supabase valida o Firebase como Third-Party Auth.
+5. As políticas RLS validam explicitamente `iss`, `aud` e `sub` do projeto Firebase oficial antes de permitir operações privadas.
+6. O perfil da conta é sincronizado no Postgres quando a sessão é criada.
+7. Vídeos, thumbnails e imagens ficam no Supabase Storage; metadados, relações sociais e mensagens ficam no Postgres.
 
 O frontend usa somente configurações públicas do Firebase e a **publishable key** do Supabase. Chaves `service_role`, secret keys ou credenciais administrativas nunca devem entrar no navegador.
 
@@ -77,13 +78,9 @@ createClient(url, publishableKey, {
 })
 ```
 
-Para que o token seja tratado como `authenticated` pelo Postgres, os usuários Firebase precisam possuir o custom claim:
+Firebase não adiciona `role: authenticated` aos ID tokens por padrão. O Threadly não depende mais de uma Cloud Function para conseguir abrir a sessão: enquanto o token Firebase é validado pelo Third-Party Auth, as operações privadas aceitam o papel Postgres `anon` somente quando o JWT possui o issuer e audience corretos do projeto `threadly-61b09` e um `sub` válido. Essa regra está versionada em `006_firebase_jwt_without_custom_role.sql`.
 
-```json
-{ "role": "authenticated" }
-```
-
-A Cloud Function de suporte está em `firebase/functions/src/index.ts`. O frontend não libera a aplicação para uma sessão incompleta: se o login existir mas a autorização Firebase → Supabase não estiver pronta, mostra uma tela de recuperação em vez de simular sucesso.
+Um custom claim `role: authenticated` ainda pode ser adotado futuramente, mas deixou de ser requisito para o funcionamento normal do site.
 
 ## Chat
 
@@ -96,7 +93,7 @@ O Direct do Threadly usa somente dados persistidos no Supabase:
 - `list_conversations` devolve participante, última mensagem e quantidade não lida;
 - Supabase Realtime entrega novas mensagens sem recarregar a página.
 
-A migração `005_real_chat_remove_demo_seed.sql` também remove o seed antigo de demonstração e adiciona uma chave determinística para impedir conversas diretas duplicadas do mesmo par de usuários.
+A migração `005_real_chat_remove_demo_seed.sql` remove o seed antigo de demonstração e adiciona uma chave determinística para impedir conversas diretas duplicadas do mesmo par de usuários. A migração `006_firebase_jwt_without_custom_role.sql` permite que esse fluxo funcione com o ID token Firebase padrão.
 
 ## Estrutura
 
@@ -111,7 +108,7 @@ src/
 supabase/
   migrations/   schema, RLS, Storage, funções, triggers e grants
 firebase/
-  functions/    função para custom claim role=authenticated
+  functions/    utilitários opcionais para Firebase
 docs/           arquitetura, segurança e implantação
 ```
 
@@ -141,7 +138,7 @@ O backend oficial está ligado ao projeto Supabase **Threadly** e inclui:
 - triggers de contadores e notificações;
 - Realtime para mensagens.
 
-As migrações ficam em `supabase/migrations/001...005` e o índice está em `supabase/schema.sql`.
+As migrações ficam em `supabase/migrations/001...006` e o índice está em `supabase/schema.sql`.
 
 Documentação técnica adicional:
 
