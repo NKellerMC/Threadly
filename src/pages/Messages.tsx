@@ -1,140 +1,29 @@
-import { Loader2, MessageCircleMore, Send } from 'lucide-react'
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Check, Edit3, ImagePlus, MessageCircleMore, MoreHorizontal, Paperclip, Pin, Reply, Send, SmilePlus, Trash2, X } from 'lucide-react'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { acceptMessageRequest, connectConversationSignals, editMessage, getConversations, getMessages, markConversationRead, pinConversation, reactToMessage, sendMessage, subscribeToInbox, subscribeToMessages, unsendMessage } from '../api/messages'
 import Avatar from '../components/Avatar'
 import EmptyState from '../components/EmptyState'
-import { getConversations, getMessages, markConversationRead, sendMessage, subscribeToInbox, subscribeToMessages } from '../api/messages'
 import { useAuth } from '../context/AuthContext'
 import type { ChatMessage, ConversationSummary } from '../lib/types'
 import { relativeTime } from '../lib/time'
 
-export default function Messages() {
-  const { user } = useAuth()
-  const [params, setParams] = useSearchParams()
-  const [conversations, setConversations] = useState<ConversationSummary[]>([])
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [body, setBody] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [loadingChat, setLoadingChat] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [status, setStatus] = useState('')
-  const endRef = useRef<HTMLDivElement | null>(null)
+const reactionChoices=['❤️','😂','🔥','👏','😮','😢']
 
-  const activeId = params.get('chat') ?? conversations[0]?.id ?? ''
-  const active = useMemo(() => conversations.find(c => c.id === activeId), [conversations, activeId])
-
-  const loadConversations = useCallback(async () => {
-    const list = await getConversations()
-    setConversations(list)
-    const requested = params.get('chat')
-    if (!requested && list[0]) setParams({ chat: list[0].id }, { replace: true })
-    if (requested && !list.some(item => item.id === requested) && list[0]) setParams({ chat: list[0].id }, { replace: true })
-  }, [params, setParams])
-
-  useEffect(() => {
-    let alive = true
-    void loadConversations()
-      .catch(error => alive && setStatus(error instanceof Error ? error.message : 'Falha ao carregar conversas.'))
-      .finally(() => alive && setLoading(false))
-    const unsubscribe = subscribeToInbox(() => {
-      void loadConversations().catch(() => undefined)
-    })
-    return () => { alive = false; unsubscribe() }
-  }, [loadConversations])
-
-  useEffect(() => {
-    if (!activeId) {
-      setMessages([])
-      return
-    }
-
-    let alive = true
-    setLoadingChat(true)
-    setStatus('')
-    void getMessages(activeId)
-      .then(async list => {
-        if (!alive) return
-        setMessages(list)
-        await markConversationRead(activeId)
-        if (alive) setConversations(current => current.map(c => c.id === activeId ? { ...c, unread: 0 } : c))
-      })
-      .catch(error => alive && setStatus(error instanceof Error ? error.message : 'Falha ao carregar mensagens.'))
-      .finally(() => alive && setLoadingChat(false))
-
-    const unsubscribe = subscribeToMessages(activeId, message => {
-      setMessages(current => current.some(item => item.id === message.id) ? current : [...current, message])
-      if (message.senderId !== user?.uid) {
-        void markConversationRead(activeId).then(() => setConversations(current => current.map(c => c.id === activeId ? { ...c, unread: 0 } : c))).catch(() => undefined)
-      }
-      void loadConversations().catch(() => undefined)
-    }, setStatus)
-
-    return () => { alive = false; unsubscribe() }
-  }, [activeId, loadConversations, user?.uid])
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages.length, activeId])
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!activeId || !body.trim()) return
-    const text = body
-    setSending(true)
-    setStatus('')
-    try {
-      const sent = await sendMessage(activeId, text)
-      setMessages(current => current.some(item => item.id === sent.id) ? current : [...current, sent])
-      setBody('')
-      await loadConversations()
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Não foi possível enviar a mensagem.')
-    } finally {
-      setSending(false)
-    }
-  }
-
-  if (loading) return <div className="page"><div className="center-status"><Loader2 className="spin"/> Carregando suas conversas…</div></div>
-
-  if (!conversations.length) return <div className="page">
-    <header className="page-header"><div><span className="eyebrow">Direto</span><h1>Mensagens</h1></div></header>
-    {status && <div className="form-status error">{status}</div>}
-    <EmptyState icon={<MessageCircleMore/>} title="Nenhuma conversa ainda.">Abra o perfil de alguém e toque em Mensagem para começar.</EmptyState>
-  </div>
-
-  return <div className="messages-layout">
-    <aside className="conversation-list">
-      <div className="conversation-title"><span className="eyebrow">Direto</span><h1>Mensagens</h1></div>
-      {conversations.map(conversation => <button key={conversation.id} className={conversation.id === activeId ? 'active' : ''} onClick={() => setParams({ chat: conversation.id })}>
-        <Avatar name={conversation.participantName} src={conversation.participantAvatarUrl}/>
-        <div>
-          <strong>{conversation.participantName}</strong>
-          <span>{conversation.lastMessage || 'Conversa iniciada'}</span>
-          <small>{relativeTime(conversation.lastMessageAt)}</small>
-        </div>
-        {conversation.unread > 0 && <b>{conversation.unread > 99 ? '99+' : conversation.unread}</b>}
-      </button>)}
-    </aside>
-
-    <section className="chat-pane">
-      {active && <header className="chat-head">
-        <Avatar name={active.participantName} src={active.participantAvatarUrl}/>
-        <div><Link to={`/u/${encodeURIComponent(active.participantUsername)}`}><strong>{active.participantName}</strong></Link><span>@{active.participantUsername}</span></div>
-      </header>}
-
-      <div className="message-stream">
-        {loadingChat ? <div className="chat-loading"><Loader2 className="spin" size={18}/> Carregando mensagens…</div> : messages.length === 0 ? <div className="chat-empty"><MessageCircleMore size={28}/><strong>Comece a conversa.</strong><span>As mensagens enviadas aqui ficam salvas na sua conversa.</span></div> : messages.map(message => <div key={message.id} className={`bubble ${message.senderId === user?.uid ? 'mine' : ''}`}>
-          <p>{message.body}</p>
-          <small>{relativeTime(message.createdAt)}</small>
-        </div>)}
-        <div ref={endRef}/>
-      </div>
-
-      {status && <div className="chat-status form-status error">{status}</div>}
-      <form className="message-form" onSubmit={submit}>
-        <input value={body} onChange={e => setBody(e.target.value)} placeholder="Mensagem…" maxLength={2000} autoComplete="off"/>
-        <button aria-label="Enviar mensagem" disabled={sending || !body.trim()}>{sending ? <Loader2 size={18} className="spin"/> : <Send size={18}/>}</button>
-      </form>
-    </section>
-  </div>
-}
+export default function Messages(){
+  const{user}=useAuth();const[params,setParams]=useSearchParams();const[conversations,setConversations]=useState<ConversationSummary[]>([]);const[selected,setSelected]=useState(params.get('chat')??'');const[messages,setMessages]=useState<ChatMessage[]>([]);const[body,setBody]=useState('');const[attachment,setAttachment]=useState<File|null>(null);const[replyTo,setReplyTo]=useState<ChatMessage|null>(null);const[editing,setEditing]=useState<ChatMessage|null>(null);const[loading,setLoading]=useState(true);const[sending,setSending]=useState(false);const[status,setStatus]=useState('');const[typing,setTyping]=useState(false);const[online,setOnline]=useState(false);const[menuMessage,setMenuMessage]=useState('');const bottomRef=useRef<HTMLDivElement>(null);const signalRef=useRef<ReturnType<typeof connectConversationSignals>|null>(null)
+  const selectedConversation=conversations.find(c=>c.id===selected)
+  const loadInbox=async()=>{try{const data=await getConversations();setConversations(data);if(!selected&&data[0]){setSelected(data[0].id);setParams({chat:data[0].id},{replace:true})}}catch(e){setStatus(e instanceof Error?e.message:'Falha ao carregar conversas.')}finally{setLoading(false)}}
+  const loadMessages=async(id:string)=>{try{setMessages(await getMessages(id));await markConversationRead(id);setConversations(list=>list.map(c=>c.id===id?{...c,unread:0}:c))}catch(e){setStatus(e instanceof Error?e.message:'Falha ao carregar mensagens.')}}
+  useEffect(()=>{void loadInbox();return subscribeToInbox(()=>void loadInbox())},[])
+  useEffect(()=>{if(!selected)return;setMessages([]);setStatus('');void loadMessages(selected);const dispose=subscribeToMessages(selected,message=>setMessages(current=>{const index=current.findIndex(m=>m.id===message.id);if(index<0)return[...current,message];const next=[...current];next[index]=message;return next}),message=>{if(message.includes('atualizada'))void loadMessages(selected);else setStatus(message)});signalRef.current?.dispose();signalRef.current=connectConversationSignals(selected,{onTyping:setTyping,onOnline:setOnline});return()=>{dispose();signalRef.current?.dispose();signalRef.current=null}},[selected])
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:'smooth'})},[messages,typing])
+  const byId=useMemo(()=>new Map(messages.map(m=>[m.id,m])),[messages])
+  const selectConversation=(id:string)=>{setSelected(id);setParams({chat:id});setReplyTo(null);setEditing(null)}
+  const submit=async(e:FormEvent)=>{e.preventDefault();if(!selected||sending)return;if(editing){if(!body.trim())return;setSending(true);try{await editMessage(editing.id,body);setMessages(items=>items.map(m=>m.id===editing.id?{...m,body:body.trim(),editedAt:new Date().toISOString()}:m));setEditing(null);setBody('')}catch(err){setStatus(err instanceof Error?err.message:'Falha ao editar.')}finally{setSending(false)}return}if(!body.trim()&&!attachment)return;setSending(true);try{const message=await sendMessage(selected,body,{replyToId:replyTo?.id,attachment});setMessages(current=>current.some(m=>m.id===message.id)?current:[...current,message]);setBody('');setAttachment(null);setReplyTo(null);signalRef.current?.setTyping(false);void loadInbox()}catch(err){setStatus(err instanceof Error?err.message:'Falha ao enviar.')}finally{setSending(false)}}
+  const react=async(message:ChatMessage,emoji:string)=>{const mine=message.reactions?.find(r=>r.userId===user?.uid);try{await reactToMessage(message.id,emoji,mine?.emoji);setMessages(items=>items.map(m=>m.id!==message.id?m:{...m,reactions:mine?.emoji===emoji?(m.reactions??[]).filter(r=>r.userId!==user?.uid):[...(m.reactions??[]).filter(r=>r.userId!==user?.uid),{userId:user!.uid,emoji}]}))}catch(e){setStatus(e instanceof Error?e.message:'Falha ao reagir.')}}
+  const remove=async(message:ChatMessage)=>{try{await unsendMessage(message.id);setMessages(items=>items.map(m=>m.id===message.id?{...m,body:'',deletedAt:new Date().toISOString(),attachments:[],reactions:[]}:m));setMenuMessage('')}catch(e){setStatus(e instanceof Error?e.message:'Falha ao remover mensagem.')}}
+  const requestDecision=async(accept:boolean)=>{if(!selected)return;try{await acceptMessageRequest(selected,accept);if(accept)setConversations(items=>items.map(c=>c.id===selected?{...c,requestState:'accepted'}:c));else{setConversations(items=>items.filter(c=>c.id!==selected));setSelected('')}}catch(e){setStatus(e instanceof Error?e.message:'Falha ao responder solicitação.')}}
+  const togglePin=async()=>{if(!selectedConversation)return;try{await pinConversation(selectedConversation.id,!selectedConversation.pinned);setConversations(items=>items.map(c=>c.id===selectedConversation.id?{...c,pinned:!c.pinned}:c))}catch(e){setStatus(e instanceof Error?e.message:'Falha ao fixar conversa.')}}
+  const editStart=(message:ChatMessage)=>{setEditing(message);setReplyTo(null);setBody(message.body);setMenuMessage('')}
+  return <div className="messages-layout"><aside className="conversation-list"><div className="conversation-title"><h1>Mensagens</h1><small>DMs reais e solicitações</small></div>{loading?<div className="chat-loading">Carregando…</div>:conversations.map(c=><button key={c.id} className={selected===c.id?'active':''} onClick={()=>selectConversation(c.id)}><Avatar name={c.participantName} src={c.participantAvatarUrl}/><div><strong>{c.kind==='group'?(c.title||'Grupo'):c.participantName}{c.pinned?' · 📌':''}</strong><span>{c.requestState==='requested'?'Solicitação · ':''}{c.lastMessage||'Nova conversa'}</span><small>{relativeTime(c.lastMessageAt)}</small></div>{c.unread>0&&<b>{c.unread>9?'9+':c.unread}</b>}</button>)}</aside><section className="chat-pane">{selectedConversation?<><header className="chat-head">{selectedConversation.kind==='direct'?<Link to={`/u/${selectedConversation.participantUsername}`}><Avatar name={selectedConversation.participantName} src={selectedConversation.participantAvatarUrl}/></Link>:<Avatar name={selectedConversation.title||'Grupo'}/>}<div>{selectedConversation.kind==='direct'?<Link to={`/u/${selectedConversation.participantUsername}`}><strong>{selectedConversation.participantName}</strong></Link>:<strong>{selectedConversation.title||'Grupo'}</strong>}<span>{typing?'digitando…':online?'online':'conversa privada'}</span></div><button className="icon-btn push-right" onClick={()=>void togglePin()} title="Fixar conversa"><Pin size={17}/></button></header>{selectedConversation.requestState==='requested'&&<div className="message-request-banner"><div><strong>Solicitação de mensagem</strong><p>Esta pessoa ainda não está na sua caixa principal.</p></div><button className="btn primary" onClick={()=>void requestDecision(true)}><Check size={16}/> Aceitar</button><button className="btn ghost" onClick={()=>void requestDecision(false)}><X size={16}/> Recusar</button></div>}<div className="message-stream">{messages.map(message=>{const mine=message.senderId===user?.uid;const replied=message.replyToId?byId.get(message.replyToId):null;return <div key={message.id} className={`bubble-wrap ${mine?'mine':''}`}>{replied&&<div className="reply-preview"><Reply size={12}/><span>{replied.deletedAt?'Mensagem removida':replied.body.slice(0,80)}</span></div>}<article className={`bubble ${mine?'mine':''} ${message.deletedAt?'deleted':''}`}>{message.deletedAt?<p>Mensagem removida</p>:<>{message.attachments?.map(a=><div key={a.id} className="message-attachment">{a.mediaType==='image'?<img src={a.url} alt="Anexo"/>:a.mediaType==='video'?<video src={a.url} controls playsInline/>:a.mediaType==='audio'?<audio src={a.url} controls/>:<a href={a.url} target="_blank" rel="noreferrer"><Paperclip size={14}/>{a.fileName||'Arquivo'}</a>}</div>)}{message.body&&<p>{message.body}</p>}{message.sharedType&&<Link className="shared-message" to={message.sharedType==='video'?`/watch/${message.sharedId}`:message.sharedType==='thread'?`/post/${message.sharedId}`:message.sharedType==='profile'?`/u/${message.sharedId}`:'#'}>Abrir {message.sharedType}</Link>}</>}<small>{relativeTime(message.createdAt)}{message.editedAt?' · editada':''}</small></article>{!message.deletedAt&&<div className="message-actions"><button onClick={()=>setReplyTo(message)} title="Responder"><Reply size={14}/></button><div className="reaction-picker"><button><SmilePlus size={14}/></button><span>{reactionChoices.map(emoji=><button key={emoji} onClick={()=>void react(message,emoji)}>{emoji}</button>)}</span></div>{mine&&<div className="message-menu-wrap"><button onClick={()=>setMenuMessage(menuMessage===message.id?'':message.id)}><MoreHorizontal size={14}/></button>{menuMessage===message.id&&<div className="message-mini-menu"><button onClick={()=>editStart(message)}><Edit3 size={13}/> Editar</button><button onClick={()=>void remove(message)}><Trash2 size={13}/> Remover</button></div>}</div>}</div>}{message.reactions&&message.reactions.length>0&&<div className="message-reactions">{Object.entries(message.reactions.reduce<Record<string,number>>((acc,r)=>(acc[r.emoji]=(acc[r.emoji]||0)+1,acc),{})).map(([emoji,count])=><button key={emoji} onClick={()=>void react(message,emoji)}>{emoji} {count}</button>)}</div>}</div>})}{typing&&<div className="typing-bubble"><i/><i/><i/></div>}<div ref={bottomRef}/></div>{status&&<div className="form-status error chat-status">{status}</div>}{selectedConversation.requestState!=='requested'&&<>{replyTo&&<div className="compose-context"><Reply size={14}/><span>Respondendo: {replyTo.body.slice(0,80)}</span><button onClick={()=>setReplyTo(null)}><X size={14}/></button></div>}{editing&&<div className="compose-context"><Edit3 size={14}/><span>Editando mensagem</span><button onClick={()=>{setEditing(null);setBody('')}}><X size={14}/></button></div>}{attachment&&<div className="compose-context"><Paperclip size={14}/><span>{attachment.name}</span><button onClick={()=>setAttachment(null)}><X size={14}/></button></div>}<form className="message-form advanced-message-form" onSubmit={submit}><label className="message-attach"><ImagePlus size={18}/><input type="file" accept="image/*,video/*,audio/*,.pdf,.txt" onChange={e=>setAttachment(e.target.files?.[0]??null)}/></label><input value={body} onChange={e=>{setBody(e.target.value);signalRef.current?.setTyping(Boolean(e.target.value.trim()))}} maxLength={2000} placeholder={editing?'Edite sua mensagem…':'Escreva uma mensagem…'}/><button disabled={sending||(!body.trim()&&!attachment)}><Send size={18}/></button></form></>}</>:<EmptyState icon={<MessageCircleMore/>} title="Escolha uma conversa."/>}</section></div>}
