@@ -1,4 +1,4 @@
-import type { Comment, NotificationItem, Profile, ThreadPost, ThreadReply, VideoPost } from '../lib/types'
+import type { Comment, MediaEditState, NotificationItem, Profile, ThreadPost, ThreadReply, VideoPost } from '../lib/types'
 
 export const mapProfile = (row: Record<string, unknown>): Profile => ({
   id: String(row.id),
@@ -10,6 +10,11 @@ export const mapProfile = (row: Record<string, unknown>): Profile => ({
   followers: Number(row.followers_count ?? 0),
   following: Number(row.following_count ?? 0),
   createdAt: row.created_at ? String(row.created_at) : undefined,
+  isPrivate: Boolean(row.is_private),
+  allowMessagesFrom: (String(row.allow_messages_from ?? 'everyone') as Profile['allowMessagesFrom']),
+  allowMentionsFrom: (String(row.allow_mentions_from ?? 'everyone') as Profile['allowMentionsFrom']),
+  allowCommentsFrom: (String(row.allow_comments_from ?? 'everyone') as Profile['allowCommentsFrom']),
+  showActivityStatus: row.show_activity_status === undefined ? true : Boolean(row.show_activity_status),
 })
 
 export const mapThread = (row: Record<string, unknown>): ThreadPost => ({
@@ -23,6 +28,11 @@ export const mapThread = (row: Record<string, unknown>): ThreadPost => ({
   createdAt: String(row.created_at ?? new Date().toISOString()),
   likes: Number(row.likes_count ?? 0),
   replies: Number(row.replies_count ?? 0),
+  audience: String(row.audience ?? 'public') as ThreadPost['audience'],
+  commentsEnabled: row.comments_enabled === undefined ? true : Boolean(row.comments_enabled),
+  commentPolicy: String(row.comment_policy ?? 'everyone') as ThreadPost['commentPolicy'],
+  locationName: row.location_name ? String(row.location_name) : null,
+  editedAt: row.edited_at ? String(row.edited_at) : null,
 })
 
 export const mapThreadReply = (row: Record<string, unknown>): ThreadReply => ({
@@ -34,6 +44,10 @@ export const mapThreadReply = (row: Record<string, unknown>): ThreadReply => ({
   avatarUrl: row.avatar_url ? String(row.avatar_url) : null,
   body: String(row.body ?? ''),
   createdAt: String(row.created_at ?? new Date().toISOString()),
+  replyToId: row.reply_to_id ? String(row.reply_to_id) : null,
+  editedAt: row.edited_at ? String(row.edited_at) : null,
+  pinned: Boolean(row.pinned_at),
+  likes: Number(row.likes_count ?? 0),
 })
 
 export const mapVideo = (row: Record<string, unknown>): VideoPost => ({
@@ -50,6 +64,12 @@ export const mapVideo = (row: Record<string, unknown>): VideoPost => ({
   likes: Number(row.likes_count ?? 0),
   comments: Number(row.comments_count ?? 0),
   views: Number(row.views_count ?? 0),
+  audience: String(row.audience ?? 'public') as VideoPost['audience'],
+  commentsEnabled: row.comments_enabled === undefined ? true : Boolean(row.comments_enabled),
+  commentPolicy: String(row.comment_policy ?? 'everyone') as VideoPost['commentPolicy'],
+  locationName: row.location_name ? String(row.location_name) : null,
+  editMetadata: row.edit_metadata && typeof row.edit_metadata === 'object' ? row.edit_metadata as MediaEditState : undefined,
+  editedAt: row.edited_at ? String(row.edited_at) : null,
 })
 
 export const mapComment = (row: Record<string, unknown>): Comment => ({
@@ -61,6 +81,10 @@ export const mapComment = (row: Record<string, unknown>): Comment => ({
   avatarUrl: row.avatar_url ? String(row.avatar_url) : null,
   body: String(row.body ?? ''),
   createdAt: String(row.created_at ?? new Date().toISOString()),
+  replyToId: row.reply_to_id ? String(row.reply_to_id) : null,
+  editedAt: row.edited_at ? String(row.edited_at) : null,
+  pinned: Boolean(row.pinned_at),
+  likes: Number(row.likes_count ?? 0),
 })
 
 export const mapNotification = (row: Record<string, unknown>): NotificationItem => ({
