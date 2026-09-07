@@ -80,9 +80,14 @@ async function prepareUser(user: User, options?: { forceRefresh?: boolean; prefe
     preferredUsername: options?.preferredUsername ?? null,
   })
 
+  if (!roleReady) {
+    console.info('Threadly: sessão aceita pelo modo de compatibilidade Firebase/anon; faça o deploy da callable para concluir a migração.')
+  }
+
   // Durante a transição, syncProfile com sucesso comprova que o JWT Firebase foi
-  // aceito pelo backend. Após o hardening final do Supabase, roleReady será obrigatório.
-  return roleReady || true
+  // aceito pelo backend. Depois do hardening final do Supabase, este retorno passa
+  // a exigir roleReady sem fallback.
+  return true
 }
 
 function usesPassword(user: User): boolean {
