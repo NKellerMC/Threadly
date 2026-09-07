@@ -6,5 +6,6 @@
 --   supabase/migrations/003_views_functions.sql
 --   supabase/migrations/004_storage_grants_realtime.sql
 --   supabase/migrations/005_real_chat_remove_demo_seed.sql
+--   supabase/migrations/006_firebase_jwt_without_custom_role.sql
 --
 -- O projeto Supabase oficial do Threadly já recebeu as migrações equivalentes.
