@@ -1,0 +1,9 @@
+-- Threadly 3.1
+-- O schema foi dividido em migrações executáveis para facilitar revisão e manutenção.
+-- Execute, nesta ordem:
+--   supabase/migrations/001_core.sql
+--   supabase/migrations/002_rls.sql
+--   supabase/migrations/003_views_functions.sql
+--   supabase/migrations/004_storage_grants_realtime.sql
+--
+-- O projeto Supabase oficial do Threadly já recebeu a migração equivalente.

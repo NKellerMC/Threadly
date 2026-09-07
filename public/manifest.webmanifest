@@ -1,0 +1,13 @@
+{
+  "name": "Threadly",
+  "short_name": "Threadly",
+  "description": "Threads, clips e descoberta social sem transformar atenção em caça-níquel.",
+  "start_url": "/Threadly/",
+  "scope": "/Threadly/",
+  "display": "standalone",
+  "background_color": "#090607",
+  "theme_color": "#0b0709",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
