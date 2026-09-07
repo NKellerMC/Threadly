@@ -13,6 +13,7 @@
 - Alteração e verificação de email
 - Configurações privadas da conta separadas do perfil público
 - Alteração de nome, @usuário, bio e site
+- Exclusão da própria conta com reautenticação e confirmação explícita
 - Verificação de disponibilidade de username em tempo real
 - Feed **Para você** e **Seguindo**
 - Threads com imagem e respostas
@@ -123,9 +124,10 @@ O nome de exibição pode se repetir. O **@usuário não**.
 - alteração de senha para contas que usam email/senha;
 - redefinição de senha;
 - nova verificação de email;
-- encerramento da sessão.
+- encerramento da sessão;
+- exclusão da própria conta e dos dados ligados ao perfil.
 
-Alterações sensíveis usam reautenticação do Firebase. Contas por senha confirmam a senha atual; contas Google confirmam identidade pelo Google.
+Alterações sensíveis usam reautenticação do Firebase. Contas por senha confirmam a senha atual; contas Google confirmam identidade pelo Google. A exclusão exige também a confirmação textual `EXCLUIR`.
 
 ## Chat
 
@@ -196,9 +198,10 @@ O backend oficial está ligado ao projeto Supabase **Threadly** e inclui:
 - funções para histórico e mensagens;
 - triggers de contadores e notificações;
 - Realtime para mensagens;
-- unicidade case-insensitive de usernames.
+- unicidade case-insensitive de usernames;
+- policy de exclusão limitada ao próprio perfil.
 
-As migrações ficam em `supabase/migrations/001...007` e o índice está em `supabase/schema.sql`.
+As migrações ficam em `supabase/migrations/001...008` e o índice está em `supabase/schema.sql`.
 
 Documentação técnica adicional:
 
