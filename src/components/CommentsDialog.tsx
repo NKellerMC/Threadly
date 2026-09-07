@@ -1,52 +1,17 @@
+import { Edit3, Heart, Loader2, Pin, Reply, Send, Trash2, X } from 'lucide-react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import { Loader2, Send, X } from 'lucide-react'
-import { addVideoComment, getVideoComments } from '../api/comments'
+import { addVideoComment, deleteVideoComment, editVideoComment, getVideoComments, pinVideoComment, toggleCommentLike } from '../api/comments'
+import { useAuth } from '../context/AuthContext'
 import type { Comment } from '../lib/types'
 import { relativeTime } from '../lib/time'
 import Avatar from './Avatar'
 
-export default function CommentsDialog({ videoId, open, onClose }: { videoId: string; open: boolean; onClose: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null)
-  const [comments, setComments] = useState<Comment[]>([])
-  const [body, setBody] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [status, setStatus] = useState('')
-
-  useEffect(() => {
-    const dialog = ref.current
-    if (!dialog) return
-    if (open && !dialog.open) dialog.showModal()
-    if (!open && dialog.open) dialog.close()
-    if (open) {
-      setLoading(true)
-      void getVideoComments(videoId).then(setComments).catch(e => setStatus(e instanceof Error ? e.message : 'Falha ao carregar comentários.')).finally(() => setLoading(false))
-    }
-  }, [open, videoId])
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!body.trim()) return
-    setSending(true); setStatus('')
-    try {
-      const comment = await addVideoComment(videoId, body)
-      setComments(list => [...list, comment])
-      setBody('')
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Falha ao comentar.')
-    } finally { setSending(false) }
-  }
-
-  return (
-    <dialog ref={ref} className="sheet-dialog comments-dialog" onClose={onClose}>
-      <div className="sheet-head"><div><span className="eyebrow">Conversa</span><h2>Comentários</h2></div><button className="icon-btn" onClick={onClose} aria-label="Fechar"><X size={20}/></button></div>
-      <div className="comments-list">
-        {loading && <div className="center-status"><Loader2 className="spin" size={22}/> carregando</div>}
-        {!loading && !comments.length && <div className="empty-mini">Ainda não há comentários. Seja a primeira pessoa a dizer algo útil.</div>}
-        {comments.map(comment => <article key={comment.id} className="comment-row"><Avatar name={comment.displayName} src={comment.avatarUrl} size="sm"/><div><p><strong>{comment.displayName}</strong> <span>@{comment.username} · {relativeTime(comment.createdAt)}</span></p><div>{comment.body}</div></div></article>)}
-      </div>
-      {status && <div className="form-status error">{status}</div>}
-      <form className="comment-form" onSubmit={submit}><input value={body} onChange={e=>setBody(e.target.value)} maxLength={500} placeholder="Adicione um comentário…"/><button disabled={sending || !body.trim()} aria-label="Enviar">{sending ? <Loader2 className="spin" size={18}/> : <Send size={18}/>}</button></form>
-    </dialog>
-  )
-}
+export default function CommentsDialog({videoId,open,onClose,canModerate=false}:{videoId:string;open:boolean;onClose:()=>void;canModerate?:boolean}){const ref=useRef<HTMLDialogElement>(null);const{user}=useAuth();const[comments,setComments]=useState<Comment[]>([]);const[body,setBody]=useState('');const[replyTo,setReplyTo]=useState<Comment|null>(null);const[editing,setEditing]=useState<Comment|null>(null);const[loading,setLoading]=useState(false);const[sending,setSending]=useState(false);const[status,setStatus]=useState('')
+  const load=async()=>{setLoading(true);try{setComments(await getVideoComments(videoId))}catch(e){setStatus(e instanceof Error?e.message:'Falha ao carregar comentários.')}finally{setLoading(false)}}
+  useEffect(()=>{const d=ref.current;if(!d)return;if(open&&!d.open)d.showModal();if(!open&&d.open)d.close();if(open)void load()},[open,videoId])
+  const submit=async(e:FormEvent)=>{e.preventDefault();if(!body.trim())return;setSending(true);setStatus('');try{if(editing){await editVideoComment(editing.id,body);setComments(items=>items.map(c=>c.id===editing.id?{...c,body:body.trim(),editedAt:new Date().toISOString()}:c));setEditing(null)}else{const comment=await addVideoComment(videoId,body,replyTo?.id);setComments(list=>[...list,comment]);setReplyTo(null)}setBody('')}catch(error){setStatus(error instanceof Error?error.message:'Falha ao comentar.')}finally{setSending(false)}}
+  const like=async(comment:Comment)=>{const before=Boolean(comment.liked);setComments(items=>items.map(c=>c.id===comment.id?{...c,liked:!before,likes:Math.max(0,(c.likes??0)+(before?-1:1))}:c));try{await toggleCommentLike(comment.id,before)}catch(e){setComments(items=>items.map(c=>c.id===comment.id?comment:c));setStatus(e instanceof Error?e.message:'Falha ao curtir.')}}
+  const remove=async(comment:Comment)=>{try{await deleteVideoComment(comment.id);setComments(items=>items.filter(c=>c.id!==comment.id&&c.replyToId!==comment.id))}catch(e){setStatus(e instanceof Error?e.message:'Falha ao apagar.')}}
+  const pin=async(comment:Comment)=>{try{await pinVideoComment(comment.id,Boolean(comment.pinned));setComments(items=>items.map(c=>c.id===comment.id?{...c,pinned:!c.pinned}:c).sort((a,b)=>Number(Boolean(b.pinned))-Number(Boolean(a.pinned))))}catch(e){setStatus(e instanceof Error?e.message:'Falha ao fixar.')}}
+  const startEdit=(comment:Comment)=>{setEditing(comment);setReplyTo(null);setBody(comment.body)}
+  return <dialog ref={ref} className="sheet-dialog comments-dialog" onClose={onClose}><div className="sheet-head"><div><span className="eyebrow">Conversa</span><h2>Comentários</h2></div><button className="icon-btn" onClick={onClose} aria-label="Fechar"><X size={20}/></button></div><div className="comments-list">{loading&&<div className="center-status"><Loader2 className="spin" size={22}/> carregando</div>}{!loading&&!comments.length&&<div className="empty-mini">Ainda não há comentários.</div>}{comments.map(comment=><article key={comment.id} className={`comment-row ${comment.replyToId?'comment-reply':''} ${comment.pinned?'pinned':''}`}><Avatar name={comment.displayName} src={comment.avatarUrl} size="sm"/><div><p><strong>{comment.displayName}</strong> <span>@{comment.username} · {relativeTime(comment.createdAt)}{comment.editedAt?' · editado':''}</span>{comment.pinned&&<b className="pinned-label"><Pin size={10}/> fixado</b>}</p><div>{comment.body}</div><footer><button className={comment.liked?'liked':''} onClick={()=>void like(comment)}><Heart size={13} fill={comment.liked?'currentColor':'none'}/> {comment.likes??0}</button><button onClick={()=>{setReplyTo(comment);setEditing(null);setBody('')}}><Reply size={13}/> Responder</button>{comment.userId===user?.uid&&<><button onClick={()=>startEdit(comment)}><Edit3 size={13}/> Editar</button><button onClick={()=>void remove(comment)}><Trash2 size={13}/></button></>}{canModerate&&<button onClick={()=>void pin(comment)}><Pin size={13}/> {comment.pinned?'Desafixar':'Fixar'}</button>}</footer></div></article>)}</div>{status&&<div className="form-status error">{status}</div>}{(replyTo||editing)&&<div className="compose-context">{editing?<Edit3 size={13}/>:<Reply size={13}/>}<span>{editing?'Editando comentário':`Respondendo @${replyTo?.username}`}</span><button onClick={()=>{setReplyTo(null);setEditing(null);setBody('')}}><X size={13}/></button></div>}<form className="comment-form" onSubmit={submit}><input value={body} onChange={e=>setBody(e.target.value)} maxLength={500} placeholder={editing?'Edite seu comentário…':replyTo?`Responder @${replyTo.username}…`:'Adicione um comentário…'}/><button disabled={sending||!body.trim()} aria-label="Enviar">{sending?<Loader2 className="spin" size={18}/>:<Send size={18}/>}</button></form></dialog>}
