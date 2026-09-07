@@ -1,0 +1,34 @@
+.auth-loading{min-height:100vh;display:grid;place-items:center;align-content:center;gap:16px;padding:32px;text-align:center;background:radial-gradient(circle at 50% 18%,rgba(214,74,108,.16),transparent 30%),var(--bg);color:var(--muted)}
+.auth-loading .brand{color:var(--text)}
+.auth-loading>span{max-width:440px;font-size:12px;line-height:1.55}
+.auth-session-error>strong{font-family:Manrope,Inter,sans-serif;color:var(--text);font-size:22px;letter-spacing:-.03em;margin-top:8px}
+.auth-session-error>div{display:flex;gap:9px;margin-top:4px}
+.auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin-bottom:28px;border:1px solid var(--line);border-radius:14px;background:#0d090b}
+.auth-tabs button{height:38px;border:0;border-radius:10px;background:transparent;color:var(--muted);font-size:11px;font-weight:750}
+.auth-tabs button.active{background:#1a1115;color:var(--text);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+.auth-footnote{display:flex;align-items:center;justify-content:center;gap:6px;margin:18px 0 0;color:var(--muted-2);font-size:9px;line-height:1.4;text-align:center}
+.auth-footnote svg{color:var(--success);flex:0 0 auto}
+.forgot-link{align-self:flex-end;border:0;background:transparent;color:var(--accent-2);font-size:10px;font-weight:700;padding:0 2px 3px}
+.form-status.success{color:#91e5bd;border-color:rgba(90,214,160,.2);background:rgba(90,214,160,.07)}
+.settings-link>span{display:flex;align-items:center;gap:8px}
+.danger-link{color:#ff8da2!important}
+
+.chat-loading,.chat-empty{min-height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px}
+.chat-loading{gap:8px}
+.chat-empty{flex-direction:column;text-align:center;gap:8px;padding:28px}
+.chat-empty svg{color:var(--accent-2);margin-bottom:3px}
+.chat-empty strong{font-family:Manrope,Inter,sans-serif;color:var(--text);font-size:16px}
+.chat-empty span{max-width:320px;line-height:1.5}
+.chat-head a:hover strong{color:var(--accent-2)}
+.chat-status{margin:0 12px 8px}
+.message-stream{scroll-behavior:smooth}
+.message-form input:focus{outline:none}
+.message-form:focus-within{border-color:rgba(255,113,143,.28)}
+.conversation-list>button.active{box-shadow:inset 3px 0 0 var(--accent-2)}
+
+@media(max-width:760px){
+  .auth-tabs{margin-bottom:24px}
+  .auth-footnote{margin-top:16px}
+  .auth-session-error>div{width:min(320px,100%);display:grid;grid-template-columns:1fr}
+  .chat-empty span{max-width:240px}
+}
