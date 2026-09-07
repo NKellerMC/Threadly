@@ -1,0 +1,8 @@
+import { FilePenLine, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { deleteDraft, getDrafts } from '../api/social'
+import { relativeTime } from '../lib/time'
+import EmptyState from '../components/EmptyState'
+
+type Draft=Awaited<ReturnType<typeof getDrafts>>[number]
+export default function Drafts(){const[drafts,setDrafts]=useState<Draft[]>([]);const[status,setStatus]=useState('');const load=async()=>{try{setDrafts(await getDrafts())}catch(e){setStatus(e instanceof Error?e.message:'Falha ao carregar rascunhos.')}};useEffect(()=>{void load()},[]);const remove=async(id:string)=>{try{await deleteDraft(id);setDrafts(items=>items.filter(item=>item.id!==id))}catch(e){setStatus(e instanceof Error?e.message:'Falha ao apagar rascunho.')}};return <div className="page narrow-page"><header className="page-header"><div><span className="eyebrow">Em andamento</span><h1>Rascunhos</h1></div></header>{status&&<div className="form-status error">{status}</div>}{drafts.length?<div className="draft-list">{drafts.map(draft=><article key={draft.id}><span><FilePenLine/></span><div><strong>{draft.kind==='thread'?'Thread':draft.kind==='clip'?'Clip':'Story'}</strong><p>{String(draft.payload.body??draft.payload.title??draft.payload.description??'Rascunho sem texto').slice(0,180)}</p><small>{relativeTime(draft.updatedAt)}</small></div><button className="icon-btn" onClick={()=>void remove(draft.id)} aria-label="Excluir rascunho"><Trash2 size={17}/></button></article>)}</div>:<EmptyState icon={<FilePenLine/>} title="Nenhum rascunho.">Ao criar uma publicação, use “Rascunho” para guardar o texto e as configurações.</EmptyState>}</div>}
