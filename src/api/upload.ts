@@ -34,7 +34,7 @@ export async function publishVideo(params: {
   locationName?: string
   editMetadata?: MediaEditState
   onProgress?: (status: string) => void
-}): Promise<void> {
+}): Promise<string> {
   validateVideoFile(params.file)
   const db = requireSupabase()
   const safeUid = params.userId.replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -57,7 +57,7 @@ export async function publishVideo(params: {
       if (error) thumbnailPath = null
     }
     params.onProgress?.('Publicando…')
-    const { error: insertError } = await db.from('videos').insert({
+    const { data, error: insertError } = await db.from('videos').insert({
       user_id: params.userId,
       title: params.title,
       description: params.description,
@@ -70,9 +70,10 @@ export async function publishVideo(params: {
       comment_policy: params.commentPolicy ?? 'everyone',
       location_name: params.locationName?.trim() || null,
       edit_metadata: params.editMetadata ?? {},
-    })
+    }).select('id').single()
     if (insertError) throw insertError
     await signedMediaUrl('videos', videoPath)
+    return String(data.id)
   } catch (error) {
     await db.storage.from('videos').remove([videoPath])
     if (thumbnailPath) await db.storage.from('thumbnails').remove([thumbnailPath])
