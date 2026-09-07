@@ -125,3 +125,11 @@ export async function updateProfile(input: { displayName: string; username: stri
     await updateFirebaseProfile(currentUser, { displayName })
   }
 }
+
+export async function deleteOwnProfile(): Promise<void> {
+  const uid = auth?.currentUser?.uid
+  if (!uid) throw new Error('Sua sessão expirou.')
+  const db = requireSupabase()
+  const { error } = await db.from('profiles').delete().eq('id', uid)
+  if (error) throw error
+}
