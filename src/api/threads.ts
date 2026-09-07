@@ -1,37 +1,40 @@
 import { auth } from '../lib/firebase'
-import { demoThreads } from '../lib/demo'
-import { requireSupabase, supabase } from '../lib/supabase'
-import { supabaseConfigured } from '../lib/config'
+import { requireSupabase } from '../lib/supabase'
 import type { ThreadPost, ThreadReply } from '../lib/types'
-import { mapThread, mapThreadReply } from './mappers'
 import { validateImageFile } from '../lib/validation'
+import { mapThread, mapThreadReply } from './mappers'
 
 async function decorate(posts: ThreadPost[]): Promise<ThreadPost[]> {
   const uid = auth?.currentUser?.uid
-  if (!uid || !supabase || !posts.length) return posts
+  if (!uid || !posts.length) return posts
+  const db = requireSupabase()
   const ids = posts.map(p => p.id)
   const [likes, saves] = await Promise.all([
-    supabase.from('thread_likes').select('thread_id').eq('user_id', uid).in('thread_id', ids),
-    supabase.from('thread_bookmarks').select('thread_id').eq('user_id', uid).in('thread_id', ids),
+    db.from('thread_likes').select('thread_id').eq('user_id', uid).in('thread_id', ids),
+    db.from('thread_bookmarks').select('thread_id').eq('user_id', uid).in('thread_id', ids),
   ])
+  if (likes.error) throw likes.error
+  if (saves.error) throw saves.error
   const liked = new Set((likes.data ?? []).map(r => String(r.thread_id)))
   const saved = new Set((saves.data ?? []).map(r => String(r.thread_id)))
   return posts.map(p => ({ ...p, liked: liked.has(p.id), saved: saved.has(p.id) }))
 }
 
 export async function getThreads(options: { userId?: string; limit?: number; followingOnly?: boolean } = {}): Promise<ThreadPost[]> {
-  if (!supabaseConfigured || !supabase) {
-    return options.userId ? demoThreads.filter(p => p.userId === options.userId) : demoThreads
-  }
-  if (options.followingOnly && auth?.currentUser) {
-    const { data: followRows } = await supabase.from('follows').select('following_id').eq('follower_id', auth.currentUser.uid)
+  const db = requireSupabase()
+  if (options.followingOnly) {
+    const uid = auth?.currentUser?.uid
+    if (!uid) throw new Error('Sua sessão expirou. Entre novamente.')
+    const { data: followRows, error: followError } = await db.from('follows').select('following_id').eq('follower_id', uid)
+    if (followError) throw followError
     const ids = (followRows ?? []).map(r => String(r.following_id))
     if (!ids.length) return []
-    const { data, error } = await supabase.from('threads_public').select('*').in('user_id', ids).order('created_at', { ascending: false }).limit(options.limit ?? 40)
+    const { data, error } = await db.from('threads_public').select('*').in('user_id', ids).order('created_at', { ascending: false }).limit(options.limit ?? 40)
     if (error) throw error
     return decorate((data ?? []).map(mapThread))
   }
-  let query = supabase.from('threads_public').select('*').order('created_at', { ascending: false }).limit(options.limit ?? 40)
+
+  let query = db.from('threads_public').select('*').order('created_at', { ascending: false }).limit(options.limit ?? 40)
   if (options.userId) query = query.eq('user_id', options.userId)
   const { data, error } = await query
   if (error) throw error
@@ -39,8 +42,8 @@ export async function getThreads(options: { userId?: string; limit?: number; fol
 }
 
 export async function getThread(threadId: string): Promise<ThreadPost | null> {
-  if (!supabaseConfigured || !supabase) return demoThreads.find(p => p.id === threadId) ?? null
-  const { data, error } = await supabase.from('threads_public').select('*').eq('id', threadId).maybeSingle()
+  const db = requireSupabase()
+  const { data, error } = await db.from('threads_public').select('*').eq('id', threadId).maybeSingle()
   if (error) throw error
   return data ? (await decorate([mapThread(data)]))[0] : null
 }
@@ -65,15 +68,15 @@ export async function createThread(userId: string, body: string, image?: File | 
 }
 
 export async function getThreadReplies(threadId: string): Promise<ThreadReply[]> {
-  if (!supabaseConfigured || !supabase) return []
-  const { data, error } = await supabase.from('thread_replies_public').select('*').eq('thread_id', threadId).order('created_at', { ascending:true }).limit(200)
+  const db = requireSupabase()
+  const { data, error } = await db.from('thread_replies_public').select('*').eq('thread_id', threadId).order('created_at', { ascending:true }).limit(200)
   if (error) throw error
   return (data ?? []).map(mapThreadReply)
 }
 
 export async function addThreadReply(threadId: string, body: string): Promise<ThreadReply> {
   const uid = auth?.currentUser?.uid
-  if (!uid) throw new Error('Entre na sua conta para responder.')
+  if (!uid) throw new Error('Sua sessão expirou. Entre novamente para responder.')
   const text = body.trim()
   if (!text) throw new Error('Escreva uma resposta.')
   const db = requireSupabase()
