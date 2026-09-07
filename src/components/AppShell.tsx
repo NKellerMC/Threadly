@@ -1,4 +1,4 @@
-import { Bell, Bookmark, Clapperboard, Compass, Heart, History as HistoryIcon, Home, LogOut, Menu, MessageCircleMore, Plus, Search, Settings, UserRound, Video, X } from 'lucide-react'
+import { Bell, Bookmark, Clapperboard, Compass, FilePenLine, Heart, History as HistoryIcon, Home, LogOut, Megaphone, Menu, MessageCircleMore, Plus, Search, Settings, ShieldCheck, UserRound, Video, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -6,143 +6,11 @@ import Avatar from './Avatar'
 import Brand from './Brand'
 import CreateDialog from './CreateDialog'
 
-const primaryNav = [
-  { to:'/', label:'Início', icon:Home },
-  { to:'/clips', label:'Clips', icon:Clapperboard },
-  { to:'/explore', label:'Explorar', icon:Compass },
-  { to:'/search', label:'Pesquisar', icon:Search },
-  { to:'/messages', label:'Mensagens', icon:MessageCircleMore },
-  { to:'/notifications', label:'Atividade', icon:Bell },
-  { to:'/profile', label:'Perfil', icon:UserRound },
-]
+const primaryNav=[{to:'/',label:'Início',icon:Home},{to:'/clips',label:'Clips',icon:Clapperboard},{to:'/explore',label:'Explorar',icon:Compass},{to:'/search',label:'Pesquisar',icon:Search},{to:'/messages',label:'Mensagens',icon:MessageCircleMore},{to:'/channels',label:'Canais',icon:Megaphone},{to:'/notifications',label:'Atividade',icon:Bell},{to:'/profile',label:'Perfil',icon:UserRound}]
+const libraryNav=[{to:'/saved',label:'Salvos',icon:Bookmark},{to:'/liked',label:'Curtidos',icon:Heart},{to:'/history',label:'Histórico',icon:HistoryIcon},{to:'/drafts',label:'Rascunhos',icon:FilePenLine},{to:'/studio',label:'Studio',icon:Video}]
 
-const libraryNav = [
-  { to:'/saved', label:'Salvos', icon:Bookmark },
-  { to:'/liked', label:'Curtidos', icon:Heart },
-  { to:'/history', label:'Histórico', icon:HistoryIcon },
-  { to:'/studio', label:'Studio', icon:Video },
-]
-
-export default function AppShell() {
-  const [createOpen, setCreateOpen] = useState(false)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const { user, signOut } = useAuth()
-  const navigate = useNavigate()
-  const location = useLocation()
-
-  useEffect(() => {
-    const open = () => setCreateOpen(true)
-    window.addEventListener('threadly:open-create', open)
-    return () => window.removeEventListener('threadly:open-create', open)
-  }, [])
-
-  useEffect(() => {
-    setMobileMenuOpen(false)
-  }, [location.pathname])
-
-  useEffect(() => {
-    if (!mobileMenuOpen) return
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileMenuOpen(false)
-    }
-    window.addEventListener('keydown', closeOnEscape)
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [mobileMenuOpen])
-
-  const displayName = user?.displayName || user?.email?.split('@')[0] || 'Threader'
-
-  const openCreate = () => {
-    setMobileMenuOpen(false)
-    setCreateOpen(true)
-  }
-
-  const logout = async () => {
-    setMobileMenuOpen(false)
-    await signOut()
-  }
-
-  return <div className="shell">
-    <aside className="sidebar">
-      <div className="sidebar-top"><Brand/></div>
-      <nav className="nav-list" aria-label="Navegação principal">
-        {primaryNav.map(({to,label,icon:Icon}) => <NavLink key={to} to={to} end={to === '/'} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}><Icon size={22} strokeWidth={2}/><span>{label}</span></NavLink>)}
-        <button className="nav-item nav-create" onClick={() => setCreateOpen(true)}><Plus size={22}/><span>Criar</span></button>
-      </nav>
-      <div className="sidebar-bottom">
-        <div className="mini-links">
-          {libraryNav.map(({to,label,icon:Icon}) => <NavLink key={to} to={to}><Icon size={17}/><span>{label}</span></NavLink>)}
-        </div>
-        <button className="account-chip" onClick={() => navigate('/profile')}>
-          <Avatar name={displayName} src={user?.photoURL} size="sm"/>
-          <span className="account-copy"><strong>{displayName}</strong><small>{user?.email}</small></span>
-          <Menu size={18}/>
-        </button>
-        <NavLink to="/settings" className="nav-item subtle"><Settings size={20}/><span>Configurações</span></NavLink>
-        <button className="nav-item subtle" onClick={() => void logout()}><LogOut size={20}/><span>Sair</span></button>
-      </div>
-    </aside>
-
-    <header className="mobile-topbar">
-      <Brand/>
-      <div className="top-actions">
-        <button className="icon-btn" onClick={() => navigate('/search')} aria-label="Pesquisar"><Search size={21}/></button>
-        <button className="icon-btn" onClick={() => navigate('/messages')} aria-label="Mensagens"><MessageCircleMore size={21}/></button>
-        <button className="icon-btn" onClick={() => setMobileMenuOpen(true)} aria-label="Abrir todas as opções" aria-expanded={mobileMenuOpen}><Menu size={22}/></button>
-      </div>
-    </header>
-
-    <main className="content"><Outlet/></main>
-
-    <nav className="mobile-nav" aria-label="Navegação móvel">
-      <NavLink to="/" end aria-label="Início"><Home size={23}/></NavLink>
-      <NavLink to="/clips" aria-label="Clips"><Clapperboard size={23}/></NavLink>
-      <NavLink to="/explore" aria-label="Explorar"><Compass size={23}/></NavLink>
-      <button aria-label="Criar" onClick={openCreate} className="mobile-create"><Plus size={22}/></button>
-      <NavLink to="/profile" aria-label="Perfil"><UserRound size={23}/></NavLink>
-    </nav>
-
-    {mobileMenuOpen && <div className="mobile-menu-layer" role="presentation">
-      <button className="mobile-menu-backdrop" aria-label="Fechar menu" onClick={() => setMobileMenuOpen(false)}/>
-      <aside className="mobile-menu-drawer" role="dialog" aria-modal="true" aria-label="Todas as opções do Threadly">
-        <div className="mobile-menu-head">
-          <button className="mobile-account" onClick={() => navigate('/profile')}>
-            <Avatar name={displayName} src={user?.photoURL} size="md"/>
-            <span><strong>{displayName}</strong><small>{user?.email}</small></span>
-          </button>
-          <button className="icon-btn" onClick={() => setMobileMenuOpen(false)} aria-label="Fechar menu"><X size={22}/></button>
-        </div>
-
-        <button className="mobile-menu-create" onClick={openCreate}><Plus size={20}/><span>Criar publicação</span></button>
-
-        <div className="mobile-menu-section">
-          <span className="mobile-menu-label">Navegação</span>
-          <nav>
-            {primaryNav.map(({to,label,icon:Icon}) => <NavLink key={to} to={to} end={to === '/'} className={({isActive}) => isActive ? 'active' : ''}><Icon size={20}/><span>{label}</span></NavLink>)}
-          </nav>
-        </div>
-
-        <div className="mobile-menu-section">
-          <span className="mobile-menu-label">Sua biblioteca</span>
-          <nav>
-            {libraryNav.map(({to,label,icon:Icon}) => <NavLink key={to} to={to} className={({isActive}) => isActive ? 'active' : ''}><Icon size={20}/><span>{label}</span></NavLink>)}
-          </nav>
-        </div>
-
-        <div className="mobile-menu-section mobile-menu-account-section">
-          <span className="mobile-menu-label">Conta</span>
-          <nav>
-            <NavLink to="/settings" className={({isActive}) => isActive ? 'active' : ''}><Settings size={20}/><span>Configurações</span></NavLink>
-            <button className="mobile-menu-logout" onClick={() => void logout()}><LogOut size={20}/><span>Sair</span></button>
-          </nav>
-        </div>
-      </aside>
-    </div>}
-
-    <CreateDialog open={createOpen} onClose={() => setCreateOpen(false)}/>
-  </div>
+export default function AppShell(){const[createOpen,setCreateOpen]=useState(false);const[mobileMenuOpen,setMobileMenuOpen]=useState(false);const{user,signOut}=useAuth();const navigate=useNavigate();const location=useLocation();useEffect(()=>{const open=()=>setCreateOpen(true);window.addEventListener('threadly:open-create',open);return()=>window.removeEventListener('threadly:open-create',open)},[]);useEffect(()=>setMobileMenuOpen(false),[location.pathname]);useEffect(()=>{if(!mobileMenuOpen)return;const previous=document.body.style.overflow;document.body.style.overflow='hidden';const close=(event:KeyboardEvent)=>{if(event.key==='Escape')setMobileMenuOpen(false)};window.addEventListener('keydown',close);return()=>{document.body.style.overflow=previous;window.removeEventListener('keydown',close)}},[mobileMenuOpen]);const displayName=user?.displayName||user?.email?.split('@')[0]||'Threader';const openCreate=()=>{setMobileMenuOpen(false);setCreateOpen(true)};const logout=async()=>{setMobileMenuOpen(false);await signOut()}
+  return <div className="shell"><aside className="sidebar"><div className="sidebar-top"><Brand/></div><nav className="nav-list" aria-label="Navegação principal">{primaryNav.map(({to,label,icon:Icon})=><NavLink key={to} to={to} end={to==='/' } className={({isActive})=>`nav-item ${isActive?'active':''}`}><Icon size={22}/><span>{label}</span></NavLink>)}<button className="nav-item nav-create" onClick={()=>setCreateOpen(true)}><Plus size={22}/><span>Criar</span></button></nav><div className="sidebar-bottom"><div className="mini-links">{libraryNav.map(({to,label,icon:Icon})=><NavLink key={to} to={to}><Icon size={17}/><span>{label}</span></NavLink>)}</div><button className="account-chip" onClick={()=>navigate('/profile')}><Avatar name={displayName} src={user?.photoURL} size="sm"/><span className="account-copy"><strong>{displayName}</strong><small>{user?.email}</small></span><Menu size={18}/></button><NavLink to="/privacy" className="nav-item subtle"><ShieldCheck size={20}/><span>Privacidade</span></NavLink><NavLink to="/settings" className="nav-item subtle"><Settings size={20}/><span>Configurações</span></NavLink><button className="nav-item subtle" onClick={()=>void logout()}><LogOut size={20}/><span>Sair</span></button></div></aside>
+    <header className="mobile-topbar"><Brand/><div className="top-actions"><button className="icon-btn" onClick={()=>navigate('/search')} aria-label="Pesquisar"><Search size={21}/></button><button className="icon-btn" onClick={()=>navigate('/messages')} aria-label="Mensagens"><MessageCircleMore size={21}/></button><button className="icon-btn" onClick={()=>setMobileMenuOpen(true)} aria-label="Abrir todas as opções" aria-expanded={mobileMenuOpen}><Menu size={22}/></button></div></header><main className="content"><Outlet/></main><nav className="mobile-nav" aria-label="Navegação móvel"><NavLink to="/" end aria-label="Início"><Home size={23}/></NavLink><NavLink to="/clips" aria-label="Clips"><Clapperboard size={23}/></NavLink><NavLink to="/explore" aria-label="Explorar"><Compass size={23}/></NavLink><button aria-label="Criar" onClick={openCreate} className="mobile-create"><Plus size={22}/></button><NavLink to="/profile" aria-label="Perfil"><UserRound size={23}/></NavLink></nav>
+    {mobileMenuOpen&&<div className="mobile-menu-layer" role="presentation"><button className="mobile-menu-backdrop" aria-label="Fechar menu" onClick={()=>setMobileMenuOpen(false)}/><aside className="mobile-menu-drawer" role="dialog" aria-modal="true" aria-label="Todas as opções do Threadly"><div className="mobile-menu-head"><button className="mobile-account" onClick={()=>navigate('/profile')}><Avatar name={displayName} src={user?.photoURL} size="md"/><span><strong>{displayName}</strong><small>{user?.email}</small></span></button><button className="icon-btn" onClick={()=>setMobileMenuOpen(false)} aria-label="Fechar menu"><X size={22}/></button></div><button className="mobile-menu-create" onClick={openCreate}><Plus size={20}/><span>Criar publicação</span></button><div className="mobile-menu-section"><span className="mobile-menu-label">Navegação</span><nav>{primaryNav.map(({to,label,icon:Icon})=><NavLink key={to} to={to} end={to==='/' } className={({isActive})=>isActive?'active':''}><Icon size={20}/><span>{label}</span></NavLink>)}</nav></div><div className="mobile-menu-section"><span className="mobile-menu-label">Sua biblioteca</span><nav>{libraryNav.map(({to,label,icon:Icon})=><NavLink key={to} to={to} className={({isActive})=>isActive?'active':''}><Icon size={20}/><span>{label}</span></NavLink>)}</nav></div><div className="mobile-menu-section mobile-menu-account-section"><span className="mobile-menu-label">Conta</span><nav><NavLink to="/privacy" className={({isActive})=>isActive?'active':''}><ShieldCheck size={20}/><span>Privacidade</span></NavLink><NavLink to="/settings" className={({isActive})=>isActive?'active':''}><Settings size={20}/><span>Configurações</span></NavLink><button className="mobile-menu-logout" onClick={()=>void logout()}><LogOut size={20}/><span>Sair</span></button></nav></div></aside></div>}<CreateDialog open={createOpen} onClose={()=>setCreateOpen(false)}/></div>
 }
