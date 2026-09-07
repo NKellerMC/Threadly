@@ -1,0 +1,22 @@
+.brand-mark{
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
+  flex:0 0 auto;
+}
+.brand-mark span{display:none!important}
+.brand-mark img{
+  width:34px;
+  height:34px;
+  object-fit:contain;
+  display:block;
+}
+.auth-loading .brand-mark{
+  width:42px;
+  height:42px;
+}
+.auth-loading .brand-mark img{
+  width:42px;
+  height:42px;
+}
