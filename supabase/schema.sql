@@ -8,5 +8,6 @@
 --   supabase/migrations/005_real_chat_remove_demo_seed.sql
 --   supabase/migrations/006_firebase_jwt_without_custom_role.sql
 --   supabase/migrations/007_username_uniqueness_and_least_privilege.sql
+--   supabase/migrations/008_account_deletion.sql
 --
 -- O projeto Supabase oficial do Threadly já recebeu as migrações equivalentes.
