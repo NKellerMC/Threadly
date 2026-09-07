@@ -15,9 +15,10 @@ import {
   updateProfile,
   verifyBeforeUpdateEmail,
 } from 'firebase/auth'
+import { httpsCallable } from 'firebase/functions'
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { deleteOwnProfile, isUsernameAvailable, syncProfile } from '../api/users'
-import { auth, googleProvider } from '../lib/firebase'
+import { auth, functions, googleProvider } from '../lib/firebase'
 
 type AuthContextValue = {
   user: User | null
@@ -37,8 +38,40 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+async function hasAuthenticatedRole(user: User, forceRefresh = false): Promise<boolean> {
+  const token = await user.getIdTokenResult(forceRefresh)
+  return token.claims.role === 'authenticated'
+}
+
+/**
+ * O Supabase Third-Party Auth usa o claim `role` do JWT do Firebase para escolher
+ * o papel Postgres. Usuários antigos também passam por aqui: se ainda não tiverem
+ * `role: authenticated`, a callable function adiciona o claim somente à própria
+ * conta e o cliente força a emissão de um novo ID token.
+ *
+ * Enquanto a função ainda não tiver sido implantada, retornamos false e mantemos
+ * compatibilidade com a migration legada que aceita JWT Firebase válido como anon.
+ * Assim o deploy do frontend não derruba sessões durante a migração. Depois que a
+ * função estiver ativa, todos os logins passam automaticamente para authenticated.
+ */
+async function ensureAuthenticatedRole(user: User): Promise<boolean> {
+  if (await hasAuthenticatedRole(user)) return true
+  if (!functions) return false
+
+  try {
+    const ensureRole = httpsCallable(functions, 'ensureAuthenticatedRole')
+    await ensureRole()
+    return hasAuthenticatedRole(user, true)
+  } catch (error) {
+    console.warn('Threadly: não foi possível obter role=authenticated; usando compatibilidade temporária.', error)
+    return false
+  }
+}
+
 async function prepareUser(user: User, options?: { forceRefresh?: boolean; preferredUsername?: string | null }): Promise<boolean> {
-  await user.getIdToken(options?.forceRefresh ?? false)
+  if (options?.forceRefresh) await user.getIdToken(true)
+  const roleReady = await ensureAuthenticatedRole(user)
+
   await syncProfile({
     userId: user.uid,
     email: user.email,
@@ -46,7 +79,10 @@ async function prepareUser(user: User, options?: { forceRefresh?: boolean; prefe
     avatarUrl: user.photoURL,
     preferredUsername: options?.preferredUsername ?? null,
   })
-  return true
+
+  // Durante a transição, syncProfile com sucesso comprova que o JWT Firebase foi
+  // aceito pelo backend. Após o hardening final do Supabase, roleReady será obrigatório.
+  return roleReady || true
 }
 
 function usesPassword(user: User): boolean {
