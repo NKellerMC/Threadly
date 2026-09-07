@@ -22,6 +22,7 @@ export type ThreadMedia = {
   id: string
   type: 'image' | 'video'
   url: string
+  storagePath?: string | null
   position: number
   altText?: string
   editMetadata?: MediaEditState
@@ -35,6 +36,7 @@ export type ThreadPost = {
   avatarUrl?: string | null
   body: string
   imageUrl?: string | null
+  imagePath?: string | null
   media?: ThreadMedia[]
   createdAt: string
   likes: number
@@ -92,7 +94,9 @@ export type VideoPost = {
   title: string
   description: string
   videoUrl: string
+  storagePath?: string | null
   thumbnailUrl?: string | null
+  thumbnailPath?: string | null
   createdAt: string
   likes: number
   comments: number
@@ -133,6 +137,7 @@ export type Story = {
   avatarUrl?: string | null
   mediaType: 'image' | 'video'
   mediaUrl: string
+  storagePath?: string | null
   caption: string
   audience: Audience
   createdAt: string
@@ -229,6 +234,7 @@ export type MessageAttachment = {
   id: string
   mediaType: 'image' | 'video' | 'audio' | 'file'
   url: string
+  storagePath?: string | null
   fileName?: string | null
   mimeType?: string | null
   sizeBytes?: number | null
