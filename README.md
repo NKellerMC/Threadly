@@ -2,18 +2,23 @@
 
 **Threadly** é uma rede social focada em duas formas de publicação: **threads** para texto e conversa e **clips** para vídeo curto. A proposta é combinar padrões úteis de redes sociais modernas com uma identidade própria, uma interface menos ruidosa e uma base técnica que possa crescer sem virar um emaranhado de remendos.
 
-> Status: **Threadly 3.2**. Firebase Authentication, Supabase Postgres/Storage e a integração Firebase → Supabase por Third-Party Auth fazem parte do fluxo oficial de produção.
+> Status: **Threadly 3.3**. Firebase Authentication, Supabase Postgres/Storage e a integração Firebase → Supabase por Third-Party Auth fazem parte do fluxo oficial de produção.
 
 ## O que existe hoje
 
 - Login obrigatório antes de acessar a aplicação
-- Cadastro por email/senha e login com Google via Firebase Authentication
-- Recuperação de senha
+- Cadastro por email/senha com escolha de **@usuário único**
+- Login com Google via Firebase Authentication
+- Recuperação e alteração de senha
+- Alteração e verificação de email
+- Configurações privadas da conta separadas do perfil público
+- Alteração de nome, @usuário, bio e site
+- Verificação de disponibilidade de username em tempo real
 - Feed **Para você** e **Seguindo**
 - Threads com imagem e respostas
 - Clips com autoplay, thumbnails e contagem real de visualizações
 - Curtidas, salvos e histórico persistentes
-- Perfis, edição de perfil e sistema de seguidores
+- Perfis e sistema de seguidores
 - Busca, Explorar, Trending e hashtags
 - Comentários em clips
 - Notificações
@@ -24,7 +29,7 @@
 - PWA básica (manifest + service worker)
 - Layout responsivo para celular e desktop
 
-O produto não possui mais modo demonstração nem fallback para usuários, posts, métricas ou conversas fictícias. Um banco novo começa vazio e passa a mostrar somente atividade criada por usuários reais.
+O produto não possui modo demonstração nem fallback para usuários, posts, métricas ou conversas fictícias. Um banco novo começa vazio e passa a mostrar somente atividade criada por usuários reais.
 
 ## Stack
 
@@ -38,7 +43,7 @@ O produto não possui mais modo demonstração nem fallback para usuários, post
 | Banco | Supabase Postgres |
 | Vídeos/imagens | Supabase Storage |
 | Realtime | Supabase Realtime |
-| Segurança | PostgreSQL RLS |
+| Segurança | PostgreSQL RLS + grants mínimos |
 | Testes | Vitest |
 | Deploy | GitHub Pages + GitHub Actions |
 
@@ -51,10 +56,10 @@ O Threadly separa autenticação e dados deliberadamente:
 3. O cliente Supabase recebe esse token por `accessToken`.
 4. O Supabase valida o Firebase como Third-Party Auth.
 5. As políticas RLS validam explicitamente `iss`, `aud` e `sub` do projeto Firebase oficial antes de permitir operações privadas.
-6. O perfil da conta é sincronizado no Postgres quando a sessão é criada.
+6. O perfil da conta é criado no Postgres na primeira sessão e deixa de ser sobrescrito em logins posteriores.
 7. Vídeos, thumbnails e imagens ficam no Supabase Storage; metadados, relações sociais e mensagens ficam no Postgres.
 
-O frontend usa somente configurações públicas do Firebase e a **publishable key** do Supabase. Chaves `service_role`, secret keys ou credenciais administrativas nunca devem entrar no navegador.
+O frontend usa somente configurações públicas do Firebase e a **publishable key** do Supabase. Chaves `service_role`, `sb_secret_*`, Firebase Admin ou credenciais administrativas nunca devem entrar no navegador.
 
 ## Autenticação
 
@@ -63,7 +68,8 @@ As rotas do produto ficam atrás de uma barreira de autenticação. Um visitante
 A tela oficial de entrada possui:
 
 - email e senha;
-- cadastro com nome, email, senha e confirmação;
+- cadastro com nome, @usuário, email, senha e confirmação;
+- checagem de disponibilidade do @ antes da criação;
 - login com Google;
 - recuperação de senha;
 - retorno automático à rota originalmente solicitada após login.
@@ -78,9 +84,48 @@ createClient(url, publishableKey, {
 })
 ```
 
-Firebase não adiciona `role: authenticated` aos ID tokens por padrão. O Threadly não depende mais de uma Cloud Function para conseguir abrir a sessão: enquanto o token Firebase é validado pelo Third-Party Auth, as operações privadas aceitam o papel Postgres `anon` somente quando o JWT possui o issuer e audience corretos do projeto `threadly-61b09` e um `sub` válido. Essa regra está versionada em `006_firebase_jwt_without_custom_role.sql`.
+Firebase não adiciona `role: authenticated` aos ID tokens por padrão. O Threadly não depende de uma Cloud Function para conseguir abrir a sessão: enquanto o token Firebase é validado pelo Third-Party Auth, as operações privadas aceitam o papel Postgres `anon` somente quando o JWT possui o issuer e audience corretos do projeto `threadly-61b09` e um `sub` válido. Essa regra está versionada em `006_firebase_jwt_without_custom_role.sql`.
 
-Um custom claim `role: authenticated` ainda pode ser adotado futuramente, mas deixou de ser requisito para o funcionamento normal do site.
+### Login com Google no GitHub Pages
+
+O Threadly usa `signInWithPopup()` em vez de `signInWithRedirect()`. Em hospedagens externas ao Firebase, o fluxo por redirect depende de armazenamento cross-origin do helper de autenticação e pode falhar em navegadores modernos que bloqueiam esse acesso. O popup elimina essa dependência para o deploy atual no GitHub Pages.
+
+## Usernames
+
+O @usuário é tratado como identidade única do perfil.
+
+- formato: 3–24 caracteres;
+- permitido: `a-z`, `0-9`, ponto e `_`;
+- normalizado para minúsculas;
+- verificação de disponibilidade no cadastro e na edição;
+- índice único normal e índice único em `lower(username)` no Postgres;
+- a restrição do banco é a autoridade final, então duas pessoas não conseguem reservar o mesmo @ mesmo que tentem ao mesmo tempo.
+
+O nome de exibição pode se repetir. O **@usuário não**.
+
+## Configurações da conta
+
+`/settings` separa dados públicos e privados.
+
+### Perfil público
+
+- nome de exibição;
+- @usuário;
+- bio;
+- site.
+
+### Conta privada
+
+- email atual;
+- status de verificação do email;
+- métodos de login conectados;
+- alteração de email com nova confirmação;
+- alteração de senha para contas que usam email/senha;
+- redefinição de senha;
+- nova verificação de email;
+- encerramento da sessão.
+
+Alterações sensíveis usam reautenticação do Firebase. Contas por senha confirmam a senha atual; contas Google confirmam identidade pelo Google.
 
 ## Chat
 
@@ -94,6 +139,19 @@ O Direct do Threadly usa somente dados persistidos no Supabase:
 - Supabase Realtime entrega novas mensagens sem recarregar a página.
 
 A migração `005_real_chat_remove_demo_seed.sql` remove o seed antigo de demonstração e adiciona uma chave determinística para impedir conversas diretas duplicadas do mesmo par de usuários. A migração `006_firebase_jwt_without_custom_role.sql` permite que esse fluxo funcione com o ID token Firebase padrão.
+
+## Sobre `.env` e chaves públicas
+
+Arquivos `.env`, `.env.local`, `.env.production` e `.env.*.local` estão ignorados pelo Git.
+
+Ainda assim, há uma distinção importante: **variável de ambiente de frontend não é segredo**. Todo valor `VITE_*` usado no navegador é incorporado ao bundle e pode ser inspecionado por quem recebe o site. Portanto:
+
+- usar `.env` melhora organização e evita commits acidentais;
+- isso não esconde a Firebase Web API key nem a Supabase publishable key do usuário final;
+- a proteção real do Supabase vem de RLS, validação do JWT e privilégios SQL mínimos;
+- `service_role`, `sb_secret_*`, service accounts e private keys jamais podem ir para `VITE_*`.
+
+Consulte [`docs/security.md`](docs/security.md) para a política detalhada.
 
 ## Estrutura
 
@@ -119,7 +177,7 @@ npm install
 npm run dev
 ```
 
-A configuração oficial de Firebase e Supabase possui defaults públicos no frontend. Para substituir valores em desenvolvimento, use `.env.local` com as variáveis documentadas em `.env.example`.
+Para substituir a configuração pública em desenvolvimento, use `.env.local` com as variáveis documentadas em `.env.example`.
 
 Validação completa:
 
@@ -133,12 +191,14 @@ O backend oficial está ligado ao projeto Supabase **Threadly** e inclui:
 
 - tabelas de perfis, threads, clips e interações;
 - RLS nas tabelas públicas;
+- grants reduzidas aos verbos realmente usados;
 - buckets `videos`, `thumbnails` e `images`;
 - funções para histórico e mensagens;
 - triggers de contadores e notificações;
-- Realtime para mensagens.
+- Realtime para mensagens;
+- unicidade case-insensitive de usernames.
 
-As migrações ficam em `supabase/migrations/001...006` e o índice está em `supabase/schema.sql`.
+As migrações ficam em `supabase/migrations/001...007` e o índice está em `supabase/schema.sql`.
 
 Documentação técnica adicional:
 
@@ -160,7 +220,7 @@ O endereço público é:
 
 **https://nkellermc.github.io/Threadly/**
 
-A publicação não depende de um GitHub Pages separado no repositório `Threadly`. O workflow do repositório `NKellerMC/NKellerMC.github.io` baixa a versão mais recente do Threadly, executa a validação, compila o projeto e copia o resultado para `dist/Threadly/` antes de publicar o site principal. Isso evita conflito com o Pages já existente do site de THERAN.
+A publicação não depende de um GitHub Pages separado no repositório `Threadly`. O workflow do repositório `NKellerMC/NKellerMC.github.io` baixa a versão mais recente do Threadly, executa a validação, compila o projeto e copia o resultado para `dist/Threadly/` antes de publicar o site principal.
 
 Neste repositório, `.github/workflows/check.yml` valida pushes e pull requests sem tentar criar um segundo Pages.
 
