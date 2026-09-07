@@ -1,4 +1,4 @@
-import { AtSign, CheckCircle2, ExternalLink, History, KeyRound, LockKeyhole, LogOut, Mail, ShieldCheck, UserRound } from 'lucide-react'
+import { AtSign, CheckCircle2, ExternalLink, History, KeyRound, LockKeyhole, LogOut, Mail, ShieldCheck, Trash2, UserRound } from 'lucide-react'
 import { type FormEvent, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -16,7 +16,7 @@ function friendlyAccountError(error: unknown): string {
 }
 
 export default function Settings() {
-  const { user, resetPassword, sendVerification, requestEmailChange, changePassword, signOut } = useAuth()
+  const { user, resetPassword, sendVerification, requestEmailChange, changePassword, deleteAccount, signOut } = useAuth()
   const navigate = useNavigate()
   const [busy, setBusy] = useState('')
   const [status, setStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -25,6 +25,8 @@ export default function Settings() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [deletePassword, setDeletePassword] = useState('')
 
   const hasPassword = useMemo(() => user?.providerData.some(provider => provider.providerId === 'password') ?? false, [user])
   const providerNames = useMemo(() => {
@@ -40,6 +42,7 @@ export default function Settings() {
       setStatus({ type: 'success', text: success })
     } catch (error) {
       setStatus({ type: 'error', text: friendlyAccountError(error) })
+      throw error
     } finally {
       setBusy('')
     }
@@ -47,8 +50,10 @@ export default function Settings() {
 
   const changeEmail = async (event: FormEvent) => {
     event.preventDefault()
-    await run('email', () => requestEmailChange(newEmail, hasPassword ? emailPassword : undefined), `Enviamos uma confirmação para ${newEmail.trim()}. O email só muda depois que você confirmar.`)
-    setEmailPassword('')
+    try {
+      await run('email', () => requestEmailChange(newEmail, hasPassword ? emailPassword : undefined), `Enviamos uma confirmação para ${newEmail.trim()}. O email só muda depois que você confirmar.`)
+      setEmailPassword('')
+    } catch { /* status já exibido */ }
   }
 
   const updateAccountPassword = async (event: FormEvent) => {
@@ -57,19 +62,43 @@ export default function Settings() {
       setStatus({ type: 'error', text: 'As novas senhas não coincidem.' })
       return
     }
-    await run('password', () => changePassword(currentPassword, newPassword), 'Senha alterada com sucesso.')
-    setCurrentPassword('')
-    setNewPassword('')
-    setConfirmPassword('')
+    try {
+      await run('password', () => changePassword(currentPassword, newPassword), 'Senha alterada com sucesso.')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch { /* status já exibido */ }
   }
 
   const sendReset = async () => {
     if (!user?.email) return
-    await run('reset', () => resetPassword(user.email!), 'Enviamos um link de redefinição para o seu email.')
+    try {
+      await run('reset', () => resetPassword(user.email!), 'Enviamos um link de redefinição para o seu email.')
+    } catch { /* status já exibido */ }
   }
 
   const verifyEmail = async () => {
-    await run('verify', sendVerification, 'Email de verificação enviado. Abra sua caixa de entrada para concluir.')
+    try {
+      await run('verify', sendVerification, 'Email de verificação enviado. Abra sua caixa de entrada para concluir.')
+    } catch { /* status já exibido */ }
+  }
+
+  const removeAccount = async (event: FormEvent) => {
+    event.preventDefault()
+    if (deleteConfirmation !== 'EXCLUIR') {
+      setStatus({ type: 'error', text: 'Digite EXCLUIR exatamente para confirmar.' })
+      return
+    }
+
+    setBusy('delete')
+    setStatus(null)
+    try {
+      await deleteAccount(hasPassword ? deletePassword : undefined)
+      navigate('/login', { replace: true })
+    } catch (error) {
+      setStatus({ type: 'error', text: friendlyAccountError(error) })
+      setBusy('')
+    }
   }
 
   const logout = async () => {
@@ -113,7 +142,7 @@ export default function Settings() {
         <label className="stack-field"><span>Confirmar nova senha</span><input type="password" autoComplete="new-password" minLength={8} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required/></label>
         <button className="btn ghost account-action" disabled={Boolean(busy)}>{busy === 'password' ? 'Salvando…' : 'Trocar senha'}</button>
       </form> : <div className="security-note"><ShieldCheck size={20}/><p>Esta conta usa Google para entrar. A autenticação principal é gerenciada pelo Google, então não há uma senha local do Threadly para trocar.</p></div>}
-      {user?.email && <button className="settings-link" disabled={Boolean(busy)} onClick={() => void sendReset()}><span><KeyRound size={16}/> Enviar link de redefinição de senha</span><ExternalLink size={16}/></button>}
+      {hasPassword && user?.email && <button className="settings-link" disabled={Boolean(busy)} onClick={() => void sendReset()}><span><KeyRound size={16}/> Enviar link de redefinição de senha</span><ExternalLink size={16}/></button>}
     </section>
 
     <section className="settings-section">
@@ -126,6 +155,17 @@ export default function Settings() {
     <section className="settings-section">
       <h2>Sessão</h2>
       <button className="settings-link danger-link" onClick={() => void logout()}><span><LogOut size={16}/> Sair do Threadly</span><ExternalLink size={16}/></button>
+    </section>
+
+    <section className="settings-section danger-zone">
+      <div className="settings-section-title"><div><Trash2 size={18}/><h2>Excluir conta</h2></div><span>Irreversível</span></div>
+      <p className="account-helper">Apaga seu perfil e os dados ligados a ele no Threadly e depois remove a conta do Firebase. Esta ação não pode ser desfeita.</p>
+      <form className="account-form" onSubmit={removeAccount}>
+        {hasPassword && <label className="stack-field"><span>Senha atual</span><input type="password" autoComplete="current-password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} required/></label>}
+        {!hasPassword && <p className="account-helper">O Google abrirá uma janela para confirmar sua identidade antes da exclusão.</p>}
+        <label className="stack-field"><span>Digite EXCLUIR para confirmar</span><input value={deleteConfirmation} onChange={e => setDeleteConfirmation(e.target.value)} autoComplete="off" required/></label>
+        <button className="btn danger account-action" disabled={Boolean(busy) || deleteConfirmation !== 'EXCLUIR'}>{busy === 'delete' ? 'Excluindo…' : 'Excluir minha conta'}</button>
+      </form>
     </section>
 
     <section className="settings-section">
