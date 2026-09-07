@@ -40,6 +40,10 @@
 .account-form-heading span,.account-helper{font-size:10px;line-height:1.45;color:var(--muted)}
 .account-helper{margin:0}
 .account-action{align-self:flex-start;min-width:150px}
+.danger-zone{border-color:rgba(255,92,119,.22);background:linear-gradient(180deg,rgba(255,92,119,.035),transparent)}
+.danger-zone .settings-section-title>div svg,.danger-zone .settings-section-title>span{color:#ff8da2}
+.btn.danger{border:1px solid rgba(255,92,119,.28);background:rgba(255,92,119,.12);color:#ff9aad}
+.btn.danger:hover{background:rgba(255,92,119,.2)}
 
 .chat-loading,.chat-empty{min-height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px}
 .chat-loading{gap:8px}
