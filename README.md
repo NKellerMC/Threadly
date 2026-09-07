@@ -1,8 +1,8 @@
 # Threadly
 
-**Threadly** é uma rede social experimental focada em duas formas de publicação: **threads** para texto/conversa e **clips** para vídeo curto. A ideia não é reproduzir o Instagram pixel por pixel; é pegar padrões que funcionam em redes sociais modernas e construir uma identidade própria, com menos ruído e uma base técnica que aguente evolução real.
+**Threadly** é uma rede social experimental focada em duas formas de publicação: **threads** para texto/conversa e **clips** para vídeo curto. A proposta é combinar padrões úteis de redes sociais modernas com uma identidade própria, uma interface menos ruidosa e uma base técnica que possa crescer sem virar um emaranhado de remendos.
 
-> Status: versão 3.1 em desenvolvimento ativo. O frontend e o backend Supabase estão conectados. O login Firebase está preparado no código, mas depende da criação/configuração do projeto Firebase.
+> Status: versão 3.1 em desenvolvimento ativo. Frontend, Firebase Authentication e backend Supabase estão configurados. A integração Firebase → Supabase usa Third-Party Auth.
 
 ## O que existe hoje
 
@@ -46,7 +46,7 @@ O Threadly separa autenticação e dados deliberadamente:
 4. O Supabase valida o Firebase como Third-Party Auth e aplica RLS no Postgres, Storage e Realtime.
 5. Vídeos, thumbnails e imagens ficam no Supabase Storage; metadados e relações sociais ficam no Postgres.
 
-A antiga chave Supabase que existia no projeto original não é utilizada. Este repositório usa uma **publishable key**, que é própria para aplicações públicas no navegador. Chaves `service_role`/secretas nunca devem entrar no frontend.
+O frontend usa somente configurações públicas do Firebase e a **publishable key** do Supabase. Chaves `service_role`, secret keys ou credenciais administrativas nunca devem entrar no navegador.
 
 ## Estrutura
 
@@ -69,9 +69,10 @@ docs/           arquitetura, segurança e implantação
 
 ```bash
 npm install
-cp .env.example .env.local
 npm run dev
 ```
+
+A configuração oficial de Firebase e Supabase já possui defaults públicos no frontend. Para substituir valores em desenvolvimento, use `.env.local` com as variáveis documentadas em `.env.example`.
 
 Validação completa:
 
@@ -79,37 +80,36 @@ Validação completa:
 npm run check
 ```
 
-## Configuração do Firebase
+## Firebase + Supabase
 
-O código já espera as variáveis abaixo:
+O Firebase oficial do Threadly usa o projeto `threadly-61b09`. No Supabase, ele deve permanecer registrado em **Authentication → Third-Party Auth → Firebase**.
 
-```env
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_STORAGE_BUCKET=
-VITE_FIREBASE_MESSAGING_SENDER_ID=
-VITE_FIREBASE_APP_ID=
+O cliente Supabase recebe o JWT atual do Firebase desta forma:
+
+```ts
+createClient(url, publishableKey, {
+  accessToken: async () => firebaseUser?.getIdToken(false) ?? null,
+})
 ```
 
-Depois de criar o projeto Firebase, ele precisa ser registrado em **Supabase → Authentication → Third-Party Auth → Firebase**, e os usuários Firebase precisam receber o custom claim:
+Para que o token seja tratado como `authenticated` pelo Postgres, os usuários Firebase precisam possuir o custom claim:
 
 ```json
 { "role": "authenticated" }
 ```
 
-A Cloud Function necessária está em `firebase/functions/src/index.ts`.
+A Cloud Function de suporte está em `firebase/functions/src/index.ts`.
 
 ## Supabase
 
-O backend oficial deste repositório está ligado ao projeto Supabase **Threadly**. O backend está versionado em `supabase/migrations/` (001 → 004); `supabase/schema.sql` funciona como índice das migrações e inclui:
+O backend oficial está ligado ao projeto Supabase **Threadly** e inclui:
 
 - tabelas de perfis, threads, clips e interações;
-- RLS em todas as tabelas públicas;
+- RLS nas tabelas públicas;
 - buckets `videos`, `thumbnails` e `images`;
-- funções para histórico/mensagens;
+- funções para histórico e mensagens;
 - triggers de contadores e notificações;
-- publicação Realtime para mensagens.
+- Realtime para mensagens.
 
 Documentação técnica adicional:
 
@@ -119,13 +119,21 @@ Documentação técnica adicional:
 - [`docs/deployment.md`](docs/deployment.md)
 - [`docs/migration-from-legacy.md`](docs/migration-from-legacy.md)
 
-## GitHub Pages
+## Produção e GitHub Pages
 
-O Vite está configurado com `base: '/Threadly/'`. O endereço esperado é:
+O Vite usa:
+
+```ts
+base: '/Threadly/'
+```
+
+O endereço público é:
 
 **https://nkellermc.github.io/Threadly/**
 
-Todo push em `main` dispara `.github/workflows/deploy.yml`, que valida TypeScript/testes, gera `dist/` e publica o artefato no GitHub Pages.
+A publicação não depende de um GitHub Pages separado no repositório `Threadly`. O workflow do repositório `NKellerMC/NKellerMC.github.io` baixa a versão mais recente do Threadly, executa `npm run check`, compila o projeto e copia o resultado para `dist/Threadly/` antes de publicar o site principal. Isso evita conflito com o Pages já existente do site de THERAN.
+
+O workflow também roda periodicamente para puxar mudanças recentes do `main` do Threadly. Neste repositório, `.github/workflows/check.yml` valida pushes e pull requests sem tentar criar um segundo Pages.
 
 ## Projeto antigo
 
