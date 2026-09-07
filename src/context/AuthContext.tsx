@@ -16,7 +16,7 @@ import {
   verifyBeforeUpdateEmail,
 } from 'firebase/auth'
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { isUsernameAvailable, syncProfile } from '../api/users'
+import { deleteOwnProfile, isUsernameAvailable, syncProfile } from '../api/users'
 import { auth, googleProvider } from '../lib/firebase'
 
 type AuthContextValue = {
@@ -30,6 +30,7 @@ type AuthContextValue = {
   sendVerification: () => Promise<void>
   requestEmailChange: (newEmail: string, currentPassword?: string) => Promise<void>
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
+  deleteAccount: (currentPassword?: string) => Promise<void>
   refreshRole: () => Promise<boolean>
   signOut: () => Promise<void>
 }
@@ -127,8 +128,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     signInGoogle: async () => {
       if (!auth) throw new Error('O serviço de login está indisponível.')
-      // GitHub Pages é hospedagem externa ao Firebase. O fluxo por redirect depende
-      // de storage cross-origin e falha em navegadores modernos; popup evita essa dependência.
       const credential = await signInWithPopup(auth, googleProvider)
       const ready = await prepareUser(credential.user)
       setSupabaseRoleReady(ready)
@@ -159,6 +158,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (newPassword.length < 8) throw new Error('A nova senha precisa ter pelo menos 8 caracteres.')
       await reauthenticate(auth.currentUser, currentPassword)
       await updatePassword(auth.currentUser, newPassword)
+    },
+    deleteAccount: async currentPassword => {
+      const currentUser = auth?.currentUser
+      if (!currentUser) throw new Error('Sua sessão expirou.')
+      await reauthenticate(currentUser, currentPassword)
+      await deleteOwnProfile()
+      await deleteUser(currentUser)
+      setSupabaseRoleReady(false)
     },
     refreshRole: async () => {
       if (!auth?.currentUser) return false
