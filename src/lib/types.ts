@@ -18,6 +18,9 @@ export type Profile = {
   showActivityStatus?: boolean
 }
 
+export type PollOption = { id:string; label:string; position:number; votes:number }
+export type PollData = { id:string; question:string; endsAt?:string|null; options:PollOption[]; myOptionId?:string|null; totalVotes:number }
+
 export type ThreadMedia = {
   id: string
   type: 'image' | 'video'
@@ -49,6 +52,9 @@ export type ThreadPost = {
   locationName?: string | null
   editedAt?: string | null
   reposted?: boolean
+  pinned?: boolean
+  poll?: PollData | null
+  collaboratorIds?: string[]
 }
 
 export type ThreadReply = {
@@ -111,6 +117,8 @@ export type VideoPost = {
   editMetadata?: MediaEditState
   editedAt?: string | null
   reposted?: boolean
+  pinned?: boolean
+  collaboratorIds?: string[]
 }
 
 export type Comment = {
@@ -225,56 +233,10 @@ export type ConversationSummary = {
   pinned?: boolean
 }
 
-export type MessageReaction = {
-  userId: string
-  emoji: string
-}
+export type MessageReaction = { userId:string; emoji:string }
+export type MessageAttachment = { id:string; mediaType:'image'|'video'|'audio'|'file'; url:string; storagePath?:string|null; fileName?:string|null; mimeType?:string|null; sizeBytes?:number|null }
+export type ChatMessage = { id:string; conversationId:string; senderId:string; body:string; createdAt:string; replyToId?:string|null; editedAt?:string|null; deletedAt?:string|null; sharedType?:'thread'|'video'|'story'|'profile'|null; sharedId?:string|null; reactions?:MessageReaction[]; attachments?:MessageAttachment[] }
 
-export type MessageAttachment = {
-  id: string
-  mediaType: 'image' | 'video' | 'audio' | 'file'
-  url: string
-  storagePath?: string | null
-  fileName?: string | null
-  mimeType?: string | null
-  sizeBytes?: number | null
-}
-
-export type ChatMessage = {
-  id: string
-  conversationId: string
-  senderId: string
-  body: string
-  createdAt: string
-  replyToId?: string | null
-  editedAt?: string | null
-  deletedAt?: string | null
-  sharedType?: 'thread' | 'video' | 'story' | 'profile' | null
-  sharedId?: string | null
-  reactions?: MessageReaction[]
-  attachments?: MessageAttachment[]
-}
-
-export type SavedCollection = {
-  id: string
-  name: string
-  updatedAt: string
-  itemCount?: number
-}
-
-export type Channel = {
-  id: string
-  ownerId: string
-  title: string
-  description: string
-  memberCount?: number
-  joined?: boolean
-}
-
-export type ChannelPost = {
-  id: string
-  channelId: string
-  userId: string
-  body: string
-  createdAt: string
-}
+export type SavedCollection = { id:string; name:string; updatedAt:string; itemCount?:number }
+export type Channel = { id:string; ownerId:string; title:string; description:string; memberCount?:number; joined?:boolean }
+export type ChannelPost = { id:string; channelId:string; userId:string; body:string; createdAt:string }
