@@ -5,10 +5,13 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 initializeApp()
 
 /**
- * Supabase Third-Party Auth exige o claim role="authenticated" no ID token
- * do Firebase. A função só pode alterar os claims do próprio usuário autenticado.
+ * O Supabase Third-Party Auth exige `role: "authenticated"` no ID token do
+ * Firebase para executar as consultas como o papel Postgres `authenticated`.
+ *
+ * Esta callable só aceita usuários já autenticados pelo Firebase e só altera os
+ * custom claims da própria conta que fez a chamada.
  */
-export const ensureAuthenticatedRole = onCall(async (request) => {
+export const ensureAuthenticatedRole = onCall({ region: 'us-central1' }, async request => {
   const uid = request.auth?.uid
   if (!uid) throw new HttpsError('unauthenticated', 'É necessário estar autenticado.')
 
@@ -20,5 +23,6 @@ export const ensureAuthenticatedRole = onCall(async (request) => {
     ...(user.customClaims ?? {}),
     role: 'authenticated',
   })
+
   return { updated: true }
 })
