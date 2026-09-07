@@ -1,0 +1,16 @@
+import { Loader2, Search, UsersRound, X } from 'lucide-react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { createGroup } from '../api/messages'
+import { searchEverything } from '../api/search'
+import { useAuth } from '../context/AuthContext'
+import type { Profile } from '../lib/types'
+import Avatar from './Avatar'
+
+export default function NewGroupDialog({open,onClose,onCreated}:{open:boolean;onClose:()=>void;onCreated:(id:string)=>void}){
+  const ref=useRef<HTMLDialogElement>(null);const{user}=useAuth();const[title,setTitle]=useState('');const[query,setQuery]=useState('');const[results,setResults]=useState<Profile[]>([]);const[selected,setSelected]=useState<Profile[]>([]);const[busy,setBusy]=useState(false);const[status,setStatus]=useState('')
+  useEffect(()=>{const d=ref.current;if(!d)return;if(open&&!d.open)d.showModal();if(!open&&d.open)d.close()},[open])
+  useEffect(()=>{const id=window.setTimeout(()=>{if(query.trim().length<2){setResults([]);return}void searchEverything(query).then(r=>setResults(r.profiles.filter(p=>p.id!==user?.uid&&!selected.some(s=>s.id===p.id)).slice(0,10))).catch(()=>setResults([]))},250);return()=>window.clearTimeout(id)},[query,user?.uid,selected])
+  const toggle=(profile:Profile)=>setSelected(items=>items.some(p=>p.id===profile.id)?items.filter(p=>p.id!==profile.id):[...items,profile])
+  const submit=async(e:FormEvent)=>{e.preventDefault();if(!title.trim()||selected.length<2)return;setBusy(true);setStatus('');try{const id=await createGroup(title.trim(),selected.map(p=>p.id));setTitle('');setQuery('');setResults([]);setSelected([]);onCreated(id);onClose()}catch(err){setStatus(err instanceof Error?err.message:'Falha ao criar grupo.')}finally{setBusy(false)}}
+  return <dialog ref={ref} className="sheet-dialog group-dialog" onClose={onClose}><form onSubmit={submit}><div className="sheet-head"><div><span className="eyebrow">Mensagens</span><h2>Novo grupo</h2></div><button type="button" className="icon-btn" onClick={onClose}><X/></button></div><label className="stack-field"><span>Nome do grupo</span><input value={title} onChange={e=>setTitle(e.target.value)} maxLength={80} placeholder="Ex.: Amigos de Theran" required/></label><label className="group-search"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar @usuários"/></label>{selected.length>0&&<div className="selected-members">{selected.map(profile=><button type="button" key={profile.id} onClick={()=>toggle(profile)}><Avatar name={profile.displayName} src={profile.avatarUrl} size="sm"/><span>@{profile.username}</span><X size={12}/></button>)}</div>}<div className="group-results">{results.map(profile=><button type="button" key={profile.id} onClick={()=>toggle(profile)}><Avatar name={profile.displayName} src={profile.avatarUrl}/><div><strong>{profile.displayName}</strong><small>@{profile.username}</small></div><span>Adicionar</span></button>)}</div>{status&&<div className="form-status error">{status}</div>}<div className="dialog-actions"><button type="button" className="btn ghost" onClick={onClose}>Cancelar</button><button className="btn primary" disabled={busy||!title.trim()||selected.length<2}>{busy?<Loader2 className="spin" size={15}/>:<UsersRound size={15}/>} Criar grupo</button></div></form></dialog>
+}
