@@ -1,0 +1,16 @@
+/* Threadly 4.0 — exclusão, moderação e complementos sociais */
+.danger-action{color:#ff8da2!important}
+.danger-action svg{color:currentColor!important}
+.danger-action:disabled{opacity:.55;cursor:wait}
+.reply-card header{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.reply-card header>span{flex:1;min-width:120px}
+.reply-delete{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:#ff8da2;display:grid;place-items:center;margin-left:auto}
+.reply-delete:hover{background:rgba(255,92,119,.1)}
+.story-delete{color:#ff9caf!important;margin-left:auto}
+.note-composer button.danger{background:rgba(255,92,119,.1);color:#ff8da2;border:1px solid rgba(255,92,119,.18)}
+.video-mini-menu .danger-action,.mini-menu .danger-action{width:100%;display:flex;align-items:center;gap:7px}
+
+@media(max-width:760px){
+  .mini-menu,.video-mini-menu{max-width:min(230px,calc(100vw - 28px))}
+  .reply-delete{width:36px;height:36px}
+}
