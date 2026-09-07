@@ -1,25 +1,38 @@
 import { auth } from '../lib/firebase'
+import { signedMediaUrl } from '../lib/media'
 import { requireSupabase } from '../lib/supabase'
 import type { VideoPost } from '../lib/types'
 import { mapVideo } from './mappers'
 
+async function resolveMedia(video: VideoPost): Promise<VideoPost> {
+  const [videoUrl, thumbnailUrl] = await Promise.all([
+    signedMediaUrl('videos', video.storagePath, video.videoUrl),
+    signedMediaUrl('thumbnails', video.thumbnailPath, video.thumbnailUrl),
+  ])
+  return { ...video, videoUrl, thumbnailUrl: thumbnailUrl || null }
+}
+
 async function decorateVideos(videos: VideoPost[]): Promise<VideoPost[]> {
+  const resolved = await Promise.all(videos.map(resolveMedia))
   const uid = auth?.currentUser?.uid
-  if (!uid || !videos.length) return videos
+  if (!uid || !resolved.length) return resolved
   const db = requireSupabase()
-  const ids = videos.map(v => v.id)
-  const [likes, saves, follows] = await Promise.all([
+  const ids = resolved.map(v => v.id)
+  const [likes, saves, follows, reposts] = await Promise.all([
     db.from('video_likes').select('video_id').eq('user_id', uid).in('video_id', ids),
     db.from('bookmarks').select('video_id').eq('user_id', uid).in('video_id', ids),
-    db.from('follows').select('following_id').eq('follower_id', uid).in('following_id', [...new Set(videos.map(v => v.userId))]),
+    db.from('follows').select('following_id').eq('follower_id', uid).in('following_id', [...new Set(resolved.map(v => v.userId))]),
+    db.from('reposts').select('target_id').eq('user_id', uid).eq('target_type','video').in('target_id', ids),
   ])
   if (likes.error) throw likes.error
   if (saves.error) throw saves.error
   if (follows.error) throw follows.error
+  if (reposts.error) throw reposts.error
   const liked = new Set((likes.data ?? []).map(r => String(r.video_id)))
   const saved = new Set((saves.data ?? []).map(r => String(r.video_id)))
   const following = new Set((follows.data ?? []).map(r => String(r.following_id)))
-  return videos.map(v => ({ ...v, liked: liked.has(v.id), saved: saved.has(v.id), followingAuthor: following.has(v.userId) }))
+  const reposted = new Set((reposts.data ?? []).map(r => String(r.target_id)))
+  return resolved.map(v => ({ ...v, liked: liked.has(v.id), saved: saved.has(v.id), followingAuthor: following.has(v.userId), reposted: reposted.has(v.id) }))
 }
 
 export async function getVideos(options: { userId?: string; limit?: number } = {}): Promise<VideoPost[]> {
