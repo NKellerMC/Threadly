@@ -72,12 +72,12 @@ export async function syncProfile(params: {
   }
 
   const displayName = params.displayName?.trim() || 'Threader'
-  const { error } = await db.from('profiles').insert({
+  const { error } = await db.from('profiles').upsert({
     id: params.userId,
     username,
     display_name: displayName,
     avatar_url: params.avatarUrl || null,
-  })
+  }, { onConflict: 'id', ignoreDuplicates: true })
   if (error) throw friendlyUsernameError(error)
 }
 
