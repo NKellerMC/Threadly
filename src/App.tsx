@@ -23,7 +23,7 @@ import UserPage from './pages/UserPage'
 import Watch from './pages/Watch'
 
 function ProtectedShell() {
-  const { user, loading } = useAuth()
+  const { user, loading, supabaseRoleReady, refreshRole, signOut } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -33,6 +33,18 @@ function ProtectedShell() {
   if (!user) {
     const from = `${location.pathname}${location.search}${location.hash}`
     return <Navigate to="/login" replace state={{ from }} />
+  }
+
+  if (!supabaseRoleReady) {
+    return <main className="auth-loading auth-session-error">
+      <Brand/>
+      <strong>Não foi possível concluir sua sessão.</strong>
+      <span>O login foi reconhecido, mas o acesso aos seus dados ainda não ficou pronto.</span>
+      <div>
+        <button className="btn primary" onClick={() => void refreshRole()}>Tentar novamente</button>
+        <button className="btn ghost" onClick={() => void signOut()}>Sair</button>
+      </div>
+    </main>
   }
 
   return <AppShell/>
