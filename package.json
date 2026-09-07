@@ -1,7 +1,7 @@
 {
   "name": "threadly",
   "private": true,
-  "version": "3.3.0",
+  "version": "4.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,6 +15,7 @@
     "@supabase/supabase-js": "2.115.0",
     "firebase": "12.18.0",
     "lucide-react": "1.41.0",
+    "mediabunny": "1.55.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-router-dom": "7.18.3"
@@ -27,7 +28,7 @@
     "vite": "8.2.2",
     "vitest": "5.0.0"
   },
-  "description": "Rede social de threads e clips construída com React, TypeScript, Vite, Firebase Auth e Supabase.",
+  "description": "Rede social de threads, clips, stories e mensagens construída com React, TypeScript, Vite, Firebase Auth e Supabase.",
   "author": "Noah Keller",
   "license": "UNLICENSED",
   "repository": {
