@@ -1,4 +1,4 @@
--- Threadly 3.2
+-- Threadly 3.3
 -- O schema foi dividido em migrações executáveis para facilitar revisão e manutenção.
 -- Execute, nesta ordem:
 --   supabase/migrations/001_core.sql
@@ -7,5 +7,6 @@
 --   supabase/migrations/004_storage_grants_realtime.sql
 --   supabase/migrations/005_real_chat_remove_demo_seed.sql
 --   supabase/migrations/006_firebase_jwt_without_custom_role.sql
+--   supabase/migrations/007_username_uniqueness_and_least_privilege.sql
 --
 -- O projeto Supabase oficial do Threadly já recebeu as migrações equivalentes.
