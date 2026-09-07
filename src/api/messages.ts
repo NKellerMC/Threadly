@@ -45,7 +45,8 @@ export async function startConversation(targetUserId: string): Promise<string> {
 export async function markConversationRead(conversationId: string): Promise<void> {
   const uid = auth?.currentUser?.uid
   if (!uid || !supabaseConfigured || !supabase) return
-  const { error } = await supabase
+  const db = supabase
+  const { error } = await db
     .from('conversation_members')
     .update({ last_read_at: new Date().toISOString() })
     .eq('conversation_id', conversationId)
@@ -55,11 +56,12 @@ export async function markConversationRead(conversationId: string): Promise<void
 
 export function subscribeToMessages(conversationId: string, onMessage: (message: ChatMessage) => void): () => void {
   if (!supabaseConfigured || !supabase) return () => undefined
-  const channel = supabase.channel(`conversation:${conversationId}`)
+  const db = supabase
+  const channel = db.channel(`conversation:${conversationId}`)
     .on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`conversation_id=eq.${conversationId}` }, (payload) => {
       const row = payload.new as Record<string, unknown>
       onMessage({ id:String(row.id), conversationId:String(row.conversation_id), senderId:String(row.sender_id), body:String(row.body), createdAt:String(row.created_at) })
     })
     .subscribe()
-  return () => { void supabase.removeChannel(channel) }
+  return () => { void db.removeChannel(channel) }
 }
