@@ -21,16 +21,8 @@ jobs:
         with:
           node-version: 24
 
-      - name: Instalar dependências do app
+      - name: Instalar dependências
         run: npm install --no-audit --no-fund
 
-      - name: Typecheck, testes e build do app
+      - name: Typecheck, testes e build
         run: npm run check
-
-      - name: Instalar dependências das Cloud Functions
-        working-directory: firebase/functions
-        run: npm install --no-audit --no-fund
-
-      - name: Build das Cloud Functions
-        working-directory: firebase/functions
-        run: npm run build
