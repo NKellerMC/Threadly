@@ -1,76 +1,56 @@
 # Deploy
 
-## 1. Firebase Auth + claim `authenticated`
+## 1. Firebase Auth no plano gratuito
 
-O Threadly usa Firebase Authentication como provedor de identidade e Supabase como banco, Storage e Realtime. Para o Supabase executar as consultas com o papel Postgres correto, o ID token do Firebase precisa conter:
+O Threadly usa Firebase Authentication como provedor de identidade e Supabase como banco, Storage e Realtime.
 
-```json
-{
-  "role": "authenticated"
-}
-```
+No plano Spark, o Firebase Authentication continua funcionando para Email/Senha e Google. O que não entra no plano gratuito é o deploy das Cloud Functions que seriam usadas apenas para adicionar o custom claim `role: authenticated`.
 
-O código da função já está em `firebase/functions/src/index.ts` e o projeto Firebase oficial já está configurado em `firebase/.firebaserc` como `threadly-61b09`.
+Por isso o Threadly **não depende de Cloud Functions**.
 
 ### Console do Firebase
 
-1. Abra o projeto `threadly-61b09` no Firebase Console.
-2. Em **Authentication > Sign-in method**, habilite **Email/Password**.
-3. No mesmo local, habilite **Google**.
-4. Em **Authentication > Settings > Authorized domains**, confirme `nkellermc.github.io`.
-5. Para implantar Cloud Functions, o projeto precisa estar no plano **Blaze**. Configure também alertas/limites de orçamento se for habilitar faturamento.
+No projeto `threadly-61b09`:
 
-### Implantar a callable que adiciona o claim
+1. em **Authentication > Sign-in method**, habilite **Email/Password**;
+2. habilite **Google**;
+3. em **Authentication > Settings > Authorized domains**, confirme `nkellermc.github.io`.
 
-Instale o Node.js 24 e a Firebase CLI. Depois, a partir de um clone deste repositório:
+Só isso é necessário no Firebase para a arquitetura gratuita atual.
 
-```bash
-npm install -g firebase-tools
-firebase login
-cd firebase
-firebase use threadly-61b09
-cd functions
-npm install
-npm run build
-cd ..
-firebase deploy --only functions:ensureAuthenticatedRole
-```
+## 2. Como a autenticação conversa com o Supabase
 
-A função é uma HTTPS Callable em `us-central1`. Ela só aceita uma conta já autenticada e só adiciona `role: authenticated` aos custom claims da própria conta que fez a chamada.
+O cliente Supabase recebe o ID token real do Firebase por `accessToken`.
 
-O frontend chama essa função automaticamente quando um usuário entra e ainda não possui o claim. Em seguida força a renovação do ID token, então usuários existentes são migrados no próximo login sem precisar editar cada conta manualmente.
+Firebase não inclui `role: authenticated` por padrão. Portanto, no Data API do Supabase esse JWT entra sob o papel Postgres `anon`. No Threadly isso não equivale a um visitante anônimo: todas as operações sensíveis usam RLS/RPCs que verificam o token Firebase e aceitam somente tokens com:
 
-### Como conferir o claim
+- `iss = https://securetoken.google.com/threadly-61b09`;
+- `aud = threadly-61b09`;
+- `sub` presente e correspondente ao UID que está realizando a operação.
 
-Depois do deploy da função:
+Uma chamada que tenha apenas a publishable key do Supabase, sem um JWT Firebase válido do projeto oficial, não satisfaz essas regras.
 
-1. abra o Threadly;
-2. saia e entre novamente;
-3. no DevTools do navegador, execute temporariamente uma inspeção do ID token via Firebase ou confira o usuário no backend;
-4. o token renovado deve conter `role: "authenticated"`.
+A migration `006_firebase_jwt_without_custom_role.sql` implementa essa compatibilidade. As migrations posteriores continuam usando `private.threadly_uid()` e ownership por UID nas policies.
 
-Enquanto a função ainda não estiver implantada, o frontend mantém a compatibilidade temporária com a migration legada que aceita JWT Firebase válido como `anon`, evitando derrubar o site durante a transição.
+> Não aplique um cutover que revogue o papel `anon` enquanto o projeto estiver usando Firebase Spark sem custom claim. Isso impediria os usuários Firebase de acessar Data API, Storage e Realtime.
 
-## 2. Supabase
+## 3. Supabase
 
-1. Em **Authentication > Third-Party Auth**, conecte o projeto Firebase `threadly-61b09`.
-2. Confirme que Project URL e publishable key são os usados pelo frontend.
-3. Para uma instalação nova, aplique as migrations de `supabase/migrations` em ordem numérica.
-4. Só aplique a migration de hardening que remove o fallback `anon` depois de confirmar que a callable do Firebase está implantada e que os tokens já recebem `role: authenticated`.
+1. em **Authentication > Third-Party Auth**, conecte o Firebase `threadly-61b09`;
+2. mantenha RLS habilitado em todas as tabelas expostas;
+3. mantenha os buckets privados e use URLs assinadas quando necessário;
+4. aplique as migrations de `supabase/migrations` em ordem numérica;
+5. nunca coloque `service_role`, `sb_secret_*` ou credenciais Firebase Admin no frontend.
 
-O cliente Supabase usa o ID token do Firebase via `accessToken`, em vez de criar uma segunda sessão de autenticação.
+A publishable key do Supabase é uma chave de cliente. A proteção efetiva dos dados fica em RLS, grants e validação do JWT.
 
-## 3. GitHub Pages
+## 4. GitHub Pages
 
-O workflow `.github/workflows/deploy.yml` executa os testes/build e publica `dist/` no GitHub Pages.
+O repositório `NKellerMC/Threadly` só valida o código. A publicação de produção é feita pelo Pages principal em `NKellerMC/NKellerMC.github.io`.
 
-No repositório `NKellerMC/Threadly`:
+O workflow do site principal baixa `NKellerMC/Threadly@main`, executa `npm run check`, copia `dist/` para `dist/Threadly/` e publica tudo junto.
 
-1. abra **Settings > Pages**;
-2. em **Build and deployment > Source**, selecione **GitHub Actions**;
-3. faça push para `main` ou rode manualmente o workflow **Publicar Threadly**.
-
-URL esperada:
+URL de produção:
 
 ```text
 https://nkellermc.github.io/Threadly/
@@ -78,18 +58,19 @@ https://nkellermc.github.io/Threadly/
 
 O `vite.config.ts` já usa a base `/Threadly/`.
 
-## 4. Validação automática
+## 5. Validação automática
 
-`.github/workflows/check.yml` valida dois projetos:
+`.github/workflows/check.yml` valida:
 
-- frontend: TypeScript, testes e build Vite;
-- `firebase/functions`: instalação das dependências e compilação TypeScript.
+- TypeScript;
+- testes Vitest;
+- build Vite.
 
-Isso impede que uma alteração no código do login seja aprovada enquanto a Cloud Function correspondente estiver quebrada.
+Não há etapa de Cloud Functions porque a versão oficial atual não depende delas.
 
-## 5. Teste de fumaça
+## 6. Teste de fumaça
 
-Após o deploy completo:
+Após um deploy:
 
 1. criar conta por email;
 2. sair/entrar novamente;
@@ -102,5 +83,4 @@ Após o deploy completo:
 9. seguir outro perfil;
 10. abrir DM, criar grupo e enviar mensagem;
 11. abrir Histórico, Curtidos, Salvos, Ferramentas e Studio;
-12. testar desktop e celular;
-13. confirmar que o usuário recebe `role: authenticated` no token Firebase.
+12. testar desktop e celular.
