@@ -15,10 +15,9 @@ import {
   updateProfile,
   verifyBeforeUpdateEmail,
 } from 'firebase/auth'
-import { httpsCallable } from 'firebase/functions'
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { deleteOwnProfile, isUsernameAvailable, syncProfile } from '../api/users'
-import { auth, functions, googleProvider } from '../lib/firebase'
+import { auth, googleProvider } from '../lib/firebase'
 
 type AuthContextValue = {
   user: User | null
@@ -38,39 +37,17 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-async function hasAuthenticatedRole(user: User, forceRefresh = false): Promise<boolean> {
-  const token = await user.getIdTokenResult(forceRefresh)
-  return token.claims.role === 'authenticated'
-}
-
 /**
- * O Supabase Third-Party Auth usa o claim `role` do JWT do Firebase para escolher
- * o papel Postgres. Usuários antigos também passam por aqui: se ainda não tiverem
- * `role: authenticated`, a callable function adiciona o claim somente à própria
- * conta e o cliente força a emissão de um novo ID token.
+ * O plano gratuito do Firebase não permite deploy de Cloud Functions. Por isso o
+ * Threadly usa o ID token Firebase diretamente no Supabase Third-Party Auth.
  *
- * Enquanto a função ainda não tiver sido implantada, retornamos false e mantemos
- * compatibilidade com a migration legada que aceita JWT Firebase válido como anon.
- * Assim o deploy do frontend não derruba sessões durante a migração. Depois que a
- * função estiver ativa, todos os logins passam automaticamente para authenticated.
+ * Como o Firebase não adiciona `role: authenticated` por padrão, o Supabase executa
+ * essas requisições como o papel Postgres `anon`. Isso NÃO significa usuário anônimo:
+ * as policies/RPCs do Threadly só aceitam tokens cujo issuer, audience e subject
+ * pertençam ao projeto Firebase oficial `threadly-61b09`, e validam o UID do dono.
  */
-async function ensureAuthenticatedRole(user: User): Promise<boolean> {
-  if (await hasAuthenticatedRole(user)) return true
-  if (!functions) return false
-
-  try {
-    const ensureRole = httpsCallable(functions, 'ensureAuthenticatedRole')
-    await ensureRole()
-    return hasAuthenticatedRole(user, true)
-  } catch (error) {
-    console.warn('Threadly: não foi possível obter role=authenticated; usando compatibilidade temporária.', error)
-    return false
-  }
-}
-
 async function prepareUser(user: User, options?: { forceRefresh?: boolean; preferredUsername?: string | null }): Promise<boolean> {
-  if (options?.forceRefresh) await user.getIdToken(true)
-  const roleReady = await ensureAuthenticatedRole(user)
+  await user.getIdToken(options?.forceRefresh ?? false)
 
   await syncProfile({
     userId: user.uid,
@@ -80,13 +57,6 @@ async function prepareUser(user: User, options?: { forceRefresh?: boolean; prefe
     preferredUsername: options?.preferredUsername ?? null,
   })
 
-  if (!roleReady) {
-    console.info('Threadly: sessão aceita pelo modo de compatibilidade Firebase/anon; faça o deploy da callable para concluir a migração.')
-  }
-
-  // Durante a transição, syncProfile com sucesso comprova que o JWT Firebase foi
-  // aceito pelo backend. Depois do hardening final do Supabase, este retorno passa
-  // a exigir roleReady sem fallback.
   return true
 }
 
@@ -147,8 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn: async (email, password) => {
       if (!auth) throw new Error('O serviço de login está indisponível.')
       const credential = await signInWithEmailAndPassword(auth, email, password)
-      const ready = await prepareUser(credential.user)
-      setSupabaseRoleReady(ready)
+      setSupabaseRoleReady(await prepareUser(credential.user))
     },
     register: async (name, username, email, password) => {
       if (!auth) throw new Error('O serviço de cadastro está indisponível.')
@@ -160,8 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await updateProfile(credential.user, { displayName: name })
         await credential.user.reload()
-        const ready = await prepareUser(credential.user, { forceRefresh: true, preferredUsername: username })
-        setSupabaseRoleReady(ready)
+        setSupabaseRoleReady(await prepareUser(credential.user, { forceRefresh: true, preferredUsername: username }))
       } catch (error) {
         await deleteUser(credential.user).catch(() => undefined)
         throw error
@@ -170,8 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signInGoogle: async () => {
       if (!auth) throw new Error('O serviço de login está indisponível.')
       const credential = await signInWithPopup(auth, googleProvider)
-      const ready = await prepareUser(credential.user)
-      setSupabaseRoleReady(ready)
+      setSupabaseRoleReady(await prepareUser(credential.user, { forceRefresh: true }))
     },
     resetPassword: async email => {
       if (!auth) throw new Error('O serviço de conta está indisponível.')
